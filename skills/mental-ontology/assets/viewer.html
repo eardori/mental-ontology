@@ -1,0 +1,329 @@
+<!doctype html>
+<!--
+  멘탈모델 온톨로지 — 범용 뷰어
+  · objects.json 을 [파일 불러오기] 또는 창에 드래그해서 봅니다. (인터넷·서버 불필요)
+  · 처음엔 샘플(Acme) 데이터가 보입니다. 내 파일을 불러오면 교체됩니다.
+  · 스키마: PROMPT.md 참고. objects.json 만 고치면 화면이 다시 생성됩니다.
+-->
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>멘탈모델 온톨로지 뷰어</title>
+<style>
+  :root{
+    --bg:#0c0d10;--card:#16181f;--card2:#1b1e27;--line:#262a35;
+    --tx:#e9ecf2;--tx2:#a2a9b8;--tx3:#6b7280;
+    --hi:#34d17f;--mid:#e6b34a;--lo:#f26157;--acc:#8fd4a8;--amber:#e6b34a;--blue:#6ea8ff;--radius:16px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSystemFont,"Pretendard","Apple SD Gothic Neo","Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;line-height:1.55}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+  /* top bar */
+  header.top{position:sticky;top:0;z-index:30;background:rgba(12,13,16,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  .top .wrap{display:flex;align-items:center;justify-content:space-between;height:56px;gap:12px}
+  .brand{font-size:14px;color:var(--tx2)}.brand b{color:var(--tx)}
+  .loadbtn{font:inherit;font-size:13px;font-weight:700;color:#06231a;background:var(--hi);border:none;padding:9px 16px;border-radius:999px;cursor:pointer}
+  .loadbtn.ghost{color:var(--tx);background:var(--card2);border:1px solid var(--line)}
+  /* sample banner */
+  .banner{background:#221c0d;border-bottom:1px solid #3a2f12;color:#e8cf93;font-size:13px}
+  .banner .wrap{display:flex;align-items:center;justify-content:space-between;height:42px}
+  .banner.hidden{display:none}
+  /* drop overlay */
+  #drop{position:fixed;inset:0;z-index:50;background:rgba(12,13,16,.92);display:none;align-items:center;justify-content:center;border:3px dashed var(--hi)}
+  #drop.on{display:flex}
+  #drop .msg{font-size:22px;font-weight:800;color:var(--hi)}
+  /* hero */
+  .hero{padding:48px 0 36px;border-bottom:1px solid var(--line)}
+  .kicker{color:var(--amber);font-size:12.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin-bottom:14px}
+  .hero h1{font-size:clamp(30px,4.6vw,52px);line-height:1.1;margin:0 0 16px;font-weight:800;letter-spacing:-.02em}
+  .hero .sub{color:var(--tx2);font-size:16px;max-width:660px}
+  .stats{display:flex;gap:12px;flex-wrap:wrap;margin-top:26px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 22px;min-width:120px}
+  .stat .num{font-size:30px;font-weight:800}.stat .lab{color:var(--tx2);font-size:12.5px}
+  .navbtns{display:flex;gap:8px;flex-wrap:wrap;margin-top:24px}
+  .navbtns button{font:inherit;font-size:13.5px;font-weight:600;color:var(--tx);background:var(--card2);border:1px solid var(--line);padding:9px 16px;border-radius:999px;cursor:pointer}
+  .navbtns button:hover{background:#232734}
+  /* sections */
+  section{padding:52px 0;border-bottom:1px solid var(--line)}
+  section.hidden{display:none}
+  .sec-head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:28px;flex-wrap:wrap}
+  .sec-head h2{font-size:clamp(26px,3.6vw,38px);margin:0;font-weight:800;letter-spacing:-.02em}
+  .sec-head p{color:var(--tx2);font-size:14px;max-width:440px;margin:0;text-align:right}
+  @media(max-width:640px){.sec-head p{text-align:left}}
+  .ev{font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:999px;white-space:nowrap}
+  .ev.high{color:#0b2a1c;background:var(--hi)}.ev.mid{color:#2c2205;background:var(--mid)}.ev.low{color:#2c0f0c;background:var(--lo)}
+  .grid{display:grid;gap:16px}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  @media(max-width:900px){.g3{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:640px){.g3{grid-template-columns:1fr}}
+  /* people */
+  .pcard{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:22px}
+  .pcard .ph{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  .pcard h3{margin:0;font-size:21px;font-weight:800}.pcard .role{color:var(--amber);font-size:13px;font-weight:600;margin-top:3px}
+  .pcard .psum{color:var(--tx2);font-size:13.5px;margin:13px 0 15px}
+  .pcard .lbl{color:var(--tx3);font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin:0 0 8px}
+  .pcard ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+  .pcard li{font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:8px}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--acc);flex:none}
+  .evo{margin-top:14px;border-top:1px dashed var(--line);padding-top:12px}
+  .evo .row{font-size:12px;color:var(--tx2);display:flex;gap:8px;margin-bottom:4px}
+  .evo .d{color:var(--amber);font-weight:700;flex:none}
+  /* filters + models */
+  .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px}
+  .filters button{font:inherit;font-size:13px;font-weight:600;color:var(--tx2);background:transparent;border:1px solid var(--line);padding:8px 15px;border-radius:999px;cursor:pointer}
+  .filters button:hover{color:var(--tx);border-color:#3a4150}
+  .filters button.on{background:var(--amber);color:#2c2205;border-color:var(--amber)}
+  .mcard{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px;display:flex;flex-direction:column}
+  .mcard .mh{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+  .cat{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--amber)}
+  .mcard h4{margin:0 0 9px;font-size:17px;font-weight:800;line-height:1.3}
+  .mcard .mdesc{color:var(--tx2);font-size:13px;margin:0 0 12px}
+  .quote{border-left:2px solid var(--hi);padding:7px 0 7px 11px;margin:0 0 12px;color:var(--tx);font-size:12px;font-style:italic;background:linear-gradient(90deg,rgba(52,209,127,.06),transparent)}
+  .ptags{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto}
+  .ptag{font-size:11.5px;font-weight:700;color:var(--tx);background:var(--card2);border:1px solid var(--line);padding:4px 9px;border-radius:8px}
+  /* relations graph */
+  .relbox{display:grid;grid-template-columns:1.3fr 1fr;gap:24px;align-items:start}
+  @media(max-width:820px){.relbox{grid-template-columns:1fr}}
+  .graph{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:8px}
+  .graph svg{width:100%;height:auto;display:block}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;padding:10px 14px;font-size:12.5px;color:var(--tx2)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .legend i{width:18px;height:3px;border-radius:2px;display:inline-block}
+  .rellist{display:flex;flex-direction:column;gap:10px}
+  .relrow{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 16px}
+  .relrow .top{display:flex;align-items:center;gap:8px;font-weight:800;font-size:14px;margin-bottom:3px}
+  .reltype{font-size:11px;font-weight:800;padding:2px 8px;border-radius:6px}
+  .reltype.tension{color:#2c0f0c;background:var(--lo)}
+  .reltype.agree{color:#0b2a1c;background:var(--hi)}
+  .reltype.builds-on{color:#0a1a33;background:var(--blue)}
+  .relrow .rn{color:var(--tx2);font-size:12.5px}
+  /* timeline */
+  .tl{position:relative;margin-left:8px;padding-left:24px;border-left:2px solid var(--line)}
+  .tl .item{position:relative;margin-bottom:22px}
+  .tl .item::before{content:"";position:absolute;left:-31px;top:4px;width:10px;height:10px;border-radius:50%;background:var(--amber);border:2px solid var(--bg)}
+  .tl .date{color:var(--amber);font-size:12.5px;font-weight:700}
+  .tl .ttl{font-size:14px;font-weight:700;margin:1px 0 3px}
+  .tl .ch{color:var(--tx2);font-size:13.5px}
+  /* bets & risks */
+  .br{display:grid;grid-template-columns:1fr 1fr;gap:32px}
+  @media(max-width:820px){.br{grid-template-columns:1fr}}
+  .betrow{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:17px 20px;margin-bottom:12px}
+  .betrow .tag{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#bcd;background:#1e2636;border:1px solid #2b3a52;padding:3px 9px;border-radius:7px;margin-bottom:7px}
+  .betrow h4{margin:0 0 4px;font-size:15.5px;font-weight:800}.betrow p{margin:0;color:var(--tx2);font-size:13px}
+  .riskrow{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:15px 20px 15px 22px;margin-bottom:12px;position:relative}
+  .riskrow::before{content:"";position:absolute;left:0;top:14px;width:8px;height:8px;border-radius:50%}
+  .riskrow.high::before{background:var(--lo)}.riskrow.mid::before{background:var(--mid)}.riskrow.low::before{background:var(--acc)}
+  .riskrow h4{margin:0 0 3px;font-size:14.5px;font-weight:800}.riskrow p{margin:0;color:var(--tx2);font-size:13px}
+  footer{padding:44px 0 80px}
+  footer .note{color:var(--tx2);font-size:13px;max-width:820px;margin-bottom:18px}
+  footer .srcs{list-style:none;padding:0;margin:0 0 22px;display:flex;flex-direction:column;gap:5px}
+  footer .srcs li{font-size:12px;color:var(--tx3);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  footer .foot{font-size:11.5px;color:var(--tx3);border-top:1px solid var(--line);padding-top:18px}
+  .empty{color:var(--tx3);font-size:14px}
+</style>
+</head>
+<body>
+<div id="drop"><div class="msg">objects.json 을 여기에 놓으세요</div></div>
+
+<header class="top"><div class="wrap">
+  <div class="brand"><b>멘탈모델 온톨로지</b> 뷰어</div>
+  <div>
+    <button class="loadbtn" id="load">📁 objects.json 불러오기</button>
+    <input type="file" id="file" accept=".json,application/json" style="display:none" />
+  </div>
+</div></header>
+
+<div class="banner" id="banner"><div class="wrap">
+  <span>⚠️ 지금은 <b>샘플(Acme)</b> 데이터입니다 — 내 회의로 만든 objects.json 을 불러오면 교체됩니다.</span>
+  <button class="loadbtn ghost" id="load2">내 파일 불러오기</button>
+</div></div>
+
+<div class="hero"><div class="wrap">
+  <div class="kicker">Mental Model Ontology</div>
+  <h1 id="h-title"></h1>
+  <p class="sub" id="h-sub"></p>
+  <div class="stats" id="stats"></div>
+  <div class="navbtns" id="navbtns"></div>
+</div></div>
+
+<section id="s-people"><div class="wrap">
+  <div class="sec-head"><h2>사람별 모델</h2><p>각 인물의 핵심 사고방식 + 근거 등급(높음/중간/부족). 여러 회의가 있으면 사고 변화도 표시.</p></div>
+  <div class="grid g3" id="people-grid"></div>
+</div></section>
+
+<section id="s-map"><div class="wrap">
+  <div class="sec-head"><h2>멘탈모델 지도</h2><p>범주로 묶은 사고의 골격. 버튼으로 좁혀 볼 수 있고, 실제 발언이 있으면 인용으로 표시.</p></div>
+  <div class="filters" id="filters"></div>
+  <div class="grid g3" id="models-grid"></div>
+</div></section>
+
+<section id="s-rel"><div class="wrap">
+  <div class="sec-head"><h2>관계와 대립</h2><p>누가 누구와 합의·대립·발전하는지. 대립(빨강)이 위임·정렬의 핵심 신호다.</p></div>
+  <div class="relbox">
+    <div>
+      <div class="graph"><svg id="relsvg" viewBox="0 0 800 500" preserveAspectRatio="xMidYMid meet"></svg></div>
+      <div class="legend">
+        <span><i style="background:#f26157"></i>대립 tension</span>
+        <span><i style="background:#34d17f"></i>합의 agree</span>
+        <span><i style="background:#6ea8ff"></i>발전 builds-on</span>
+      </div>
+    </div>
+    <div class="rellist" id="rel-list"></div>
+  </div>
+</div></section>
+
+<section id="s-time"><div class="wrap">
+  <div class="sec-head"><h2>시간축 변화</h2><p>회의를 거치며 조직의 사고·방향이 어떻게 움직였는지.</p></div>
+  <div class="tl" id="timeline"></div>
+</div></section>
+
+<section id="s-bets"><div class="wrap">
+  <div class="sec-head"><h2>전략 베팅과 리스크</h2><p>왼쪽은 실행 후보, 오른쪽은 이를 제약하는 리스크.</p></div>
+  <div class="br"><div id="bets-col"></div><div id="risks-col"></div></div>
+</div></section>
+
+<footer><div class="wrap">
+  <p class="note" id="f-note"></p>
+  <ul class="srcs" id="f-srcs"></ul>
+  <div class="foot">멘탈모델 온톨로지 뷰어 · objects.json 하나로 재생성 · 방법론: 탭제로 김태호 · 인용은 STT 교정본이라 원문과 다를 수 있음</div>
+</div></footer>
+
+<script id="sample-data" type="application/json">
+{"meta":{"title":"Acme 리더 멘탈모델 온톨로지 (샘플)","org":"Acme","subtitle":"가상의 구독 커머스 스타트업 Acme의 5~6월 전략·가격 회의 2건에서 리더들의 사고방식을 재구성한 예시 데이터.","date_range":"2026-05-20 ~ 2026-06-24","sensitivity":"L2","confidence_note":"이 파일은 도구 시연용 가상 데이터입니다. 실제 인물·조직과 무관합니다.","sources":["2026-05-20 Acme 전략 회의 (녹취)","2026-06-24 Acme 가격정책 회의 (녹취)"]},"meetings":[{"id":"m1","date":"2026-05-20","title":"전략 회의 — 다음 분기 방향"},{"id":"m2","date":"2026-06-24","title":"가격정책 회의 — 구독료 인상 여부"}],"people":[{"name":"정우진","role":"CEO","summary":"시장에 먼저 신호를 던지고 반응으로 배우려는 속도 지향 창업자. 완성도보다 학습 속도를 우선하며, 팀이 스스로 답을 찾게 질문으로 이끈다.","evidence":"high","models":["speed-over-polish","declare-to-learn","question-led"],"evolution":[{"date":"2026-05-20","note":"무조건 빠른 인상 공표를 주장."},{"date":"2026-06-24","note":"이탈 데이터 보고 '단계적 인상'으로 톤 조정."}]},{"name":"이서연","role":"CPO","summary":"제품 완성도를 신뢰의 전제로 보는 프로덕트 리더. 차별 기능 없이 가격을 올리면 신뢰가 깨진다고 본다.","evidence":"high","models":["value-before-price","trust-is-fragile"],"evolution":[{"date":"2026-06-24","note":"'번들 기능 먼저 출시 후 인상' 절충안 제시."}]},{"name":"박도현","role":"CFO","summary":"현금흐름과 런웨이를 판단의 축으로 두는 보수적 재무 리더.","evidence":"mid","models":["runway-first","growth-within-cash"]},{"name":"김하늘","role":"영업총괄","summary":"기존 고객 이탈을 최우선 리스크로 보는 신중론자.","evidence":"mid","models":["churn-first","retention-moat"]},{"name":"최민석","role":"CTO","summary":"실험 인프라로 의사결정을 대체하려는 데이터 우선 기술 리더.","evidence":"mid","models":["experiment-over-debate"]}],"models":[{"id":"speed-over-polish","category":"전략","title":"완성도보다 학습 속도가 먼저다","desc":"완벽히 다듬기보다 빠르게 내보내 시장 반응으로 배운다.","evidence":"high","people":["정우진"],"quote":"다 갖추고 내면 이미 늦어요. 일단 던지고 반응 보는 게 정보가 제일 빨라요.","first_seen":"m1","related":["declare-to-learn"]},{"id":"declare-to-learn","category":"제품","title":"선언이 곧 학습 장치다","desc":"인상을 먼저 공표해 내부 리소스를 모으고 반응을 조기 확인.","evidence":"high","people":["정우진"],"quote":"인상한다고 먼저 말해두면 팀이 거기 맞춰 움직여요.","first_seen":"m1","related":["speed-over-polish","value-before-price"]},{"id":"question-led","category":"조직","title":"답을 주지 않고 질문으로 이끈다","desc":"결론을 박지 않고 질문으로 팀이 스스로 패턴을 찾게 한다.","evidence":"high","people":["정우진"],"quote":"제가 정답을 말하면 다들 거기서 멈춰요.","first_seen":"m1"},{"id":"value-before-price","category":"제품","title":"가치가 가격보다 먼저다","desc":"차별 기능이 선행돼야 인상이 신뢰를 얻는다.","evidence":"high","people":["이서연"],"quote":"줄 걸 먼저 주고 받아야죠.","first_seen":"m1","related":["trust-is-fragile","declare-to-learn"]},{"id":"trust-is-fragile","category":"제품","title":"신뢰는 깨지기 쉽다","desc":"한 번 잃은 구독자 신뢰는 회복이 비싸다.","evidence":"mid","people":["이서연"],"first_seen":"m1","related":["churn-first"]},{"id":"runway-first","category":"재무","title":"런웨이가 모든 결정의 상한이다","desc":"현금 소진 속도가 전략의 경계.","evidence":"mid","people":["박도현"],"quote":"우리 통장이 14개월이에요. 거기서 시작해요.","first_seen":"m1","related":["growth-within-cash"]},{"id":"growth-within-cash","category":"재무","title":"현금 건전성 안에서만 성장한다","desc":"성장률보다 현금 회수 주기를 먼저 본다.","evidence":"mid","people":["박도현"],"first_seen":"m2","related":["runway-first"]},{"id":"churn-first","category":"리스크","title":"이탈을 최우선으로 본다","desc":"급격한 가격 변화는 기존 고객 이탈로 직결된다.","evidence":"mid","people":["김하늘"],"quote":"현장은 '배신감'이라고 말해요. 그게 이탈이에요.","first_seen":"m2","related":["retention-moat","trust-is-fragile"]},{"id":"retention-moat","category":"전략","title":"리텐션이 진짜 해자다","desc":"신규 획득보다 재구독율이 방어벽.","evidence":"mid","people":["김하늘"],"first_seen":"m2"},{"id":"experiment-over-debate","category":"기술","title":"논쟁 대신 실험으로 결정한다","desc":"의견 충돌은 A/B 테스트로 푼다.","evidence":"mid","people":["최민석"],"quote":"회의로 30분 싸울 게 아니라 두 그룹 나눠서 2주면 답 나와요.","first_seen":"m2"}],"relations":[{"from":"정우진","to":"이서연","type":"tension","topic":"인상 타이밍","note":"CEO(선언 먼저) vs CPO(가치 먼저) — 핵심 대립."},{"from":"이서연","to":"김하늘","type":"agree","topic":"신뢰·이탈","note":"둘 다 급격한 변화의 신뢰 훼손을 경계."},{"from":"박도현","to":"정우진","type":"builds-on","topic":"인상=현금 카드","note":"CFO가 CEO 인상론에 현금흐름 논거를 더함."},{"from":"최민석","to":"정우진","type":"builds-on","topic":"실험으로 속도내기","note":"CTO가 CEO 속도론을 A/B 방법론으로 구체화."},{"from":"김하늘","to":"박도현","type":"tension","topic":"성장 vs 이탈","note":"재무는 인상 찬성, 영업은 이탈 우려."}],"bets":[{"tag":"monetize","title":"구독료 단계적 인상","desc":"번들 기능 출시와 묶어 2단계, 코호트 A/B로 폭 검증."},{"tag":"product","title":"번들 기능 선출시","desc":"인상 전 차별 기능을 먼저 제공."},{"tag":"platform","title":"가격 실험 인프라","desc":"코호트 분리·과금 실험 상시 운영."}],"risks":[{"level":"high","title":"인상 타이밍 미결","desc":"CEO vs CPO 이견 미결 — 정렬 지체 시 실행 혼선."},{"level":"high","title":"기존 구독자 이탈","desc":"차별 가치 없이 인상하면 리텐션 하락."},{"level":"mid","title":"런웨이 압박","desc":"현금 14개월 — 실험 기간이 길면 재무 여유 감소."}],"timeline":[{"date":"2026-05-20","meeting":"m1","change":"CEO 주도 '빠른 인상' 방향, CPO·영업 신중론 대립."},{"date":"2026-06-24","meeting":"m2","change":"'번들 선출시 + 단계적 인상 + A/B 검증'으로 절충안 수렴."}]}
+</script>
+
+<script>
+(function(){
+  const EV={high:"근거 높음",mid:"근거 중간",low:"근거 부족"};
+  const $=id=>document.getElementById(id);
+  const esc=s=>String(s==null?"":s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+  const REL_COLOR={tension:"#f26157",agree:"#34d17f","builds-on":"#6ea8ff"};
+
+  function render(data){
+    const meta=data.meta||{}, people=data.people||[], models=data.models||[];
+    const relations=data.relations||[], bets=data.bets||[], risks=data.risks||[];
+    const timeline=data.timeline||[], meetings=data.meetings||[];
+    const modelById=Object.fromEntries(models.map(m=>[m.id,m]));
+
+    // hero
+    $("h-title").textContent=meta.title||"멘탈모델 온톨로지";
+    $("h-sub").textContent=meta.subtitle||"";
+    const stats=[["인물",people.length],["멘탈모델",models.length],["관계",relations.length],["베팅",bets.length],["리스크",risks.length]];
+    $("stats").innerHTML=stats.filter(s=>s[1]).map(s=>`<div class="stat"><div class="num">${s[1]}</div><div class="lab">${s[0]}</div></div>`).join("");
+
+    // people
+    $("people-grid").innerHTML=people.map(p=>`
+      <div class="pcard">
+        <div class="ph"><div><h3>${esc(p.name)}</h3><div class="role">${esc(p.role||"")}</div></div>
+          <span class="ev ${p.evidence||'low'}">${EV[p.evidence||'low']}</span></div>
+        <div class="psum">${esc(p.summary||"")}</div>
+        <div class="lbl">연결된 모델</div>
+        <ul>${(p.models||[]).map(id=>`<li><span class="dot"></span>${esc((modelById[id]||{}).title||id)}</li>`).join("")}</ul>
+        ${(p.evolution&&p.evolution.length)?`<div class="evo"><div class="lbl">사고 변화</div>${p.evolution.map(e=>`<div class="row"><span class="d">${esc(e.date)}</span><span>${esc(e.note)}</span></div>`).join("")}</div>`:""}
+      </div>`).join("");
+
+    // models + filters
+    const cats=["전체",...[...new Set(models.map(m=>m.category).filter(Boolean))]];
+    let active="전체";
+    const drawModels=()=>{
+      const list=active==="전체"?models:models.filter(m=>m.category===active);
+      $("models-grid").innerHTML=list.map(m=>`
+        <div class="mcard">
+          <div class="mh"><span class="cat">${esc(m.category||"")}</span><span class="ev ${m.evidence||'low'}">${EV[m.evidence||'low']}</span></div>
+          <h4>${esc(m.title)}</h4>
+          <p class="mdesc">${esc(m.desc||"")}</p>
+          ${m.quote?`<div class="quote">“${esc(m.quote)}”</div>`:""}
+          <div class="ptags">${(m.people||[]).map(n=>`<span class="ptag">${esc(n)}</span>`).join("")}</div>
+        </div>`).join("");
+    };
+    $("filters").innerHTML=cats.map((c,i)=>`<button data-c="${esc(c)}" class="${i===0?'on':''}">${esc(c)}</button>`).join("");
+    $("filters").onclick=e=>{const b=e.target.closest("button");if(!b)return;active=b.dataset.c;[...$("filters").children].forEach(x=>x.classList.toggle("on",x===b));drawModels();};
+    drawModels();
+
+    // relations
+    const relSec=$("s-rel");
+    if(relations.length && people.length){
+      relSec.classList.remove("hidden");
+      drawGraph(people,relations);
+      $("rel-list").innerHTML=relations.map(r=>`
+        <div class="relrow"><div class="top"><span class="reltype ${r.type}">${r.type==='tension'?'대립':r.type==='agree'?'합의':'발전'}</span>
+          ${esc(r.from)} ${r.type==='tension'?'↔':'→'} ${esc(r.to)}</div>
+          <div class="rn"><b>${esc(r.topic||"")}</b> — ${esc(r.note||"")}</div></div>`).join("");
+    } else relSec.classList.add("hidden");
+
+    // timeline (meetings + timeline changes)
+    const tSec=$("s-time");
+    const tItems=[];
+    if(timeline.length){
+      timeline.forEach(t=>{const mt=meetings.find(m=>m.id===t.meeting);tItems.push({date:t.date,title:mt?mt.title:"",change:t.change});});
+    } else if(meetings.length>1){
+      meetings.forEach(m=>tItems.push({date:m.date,title:m.title,change:""}));
+    }
+    if(tItems.length){
+      tSec.classList.remove("hidden");
+      tItems.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+      $("timeline").innerHTML=tItems.map(t=>`<div class="item"><div class="date">${esc(t.date)}</div>${t.title?`<div class="ttl">${esc(t.title)}</div>`:""}${t.change?`<div class="ch">${esc(t.change)}</div>`:""}</div>`).join("");
+    } else tSec.classList.add("hidden");
+
+    // bets & risks
+    const bSec=$("s-bets");
+    if(bets.length||risks.length){
+      bSec.classList.remove("hidden");
+      $("bets-col").innerHTML=bets.length?bets.map(b=>`<div class="betrow"><span class="tag">${esc(b.tag||"bet")}</span><h4>${esc(b.title)}</h4><p>${esc(b.desc||"")}</p></div>`).join(""):'<p class="empty">베팅 없음</p>';
+      $("risks-col").innerHTML=risks.length?risks.map(r=>`<div class="riskrow ${r.level||'mid'}"><h4>${esc(r.title)}</h4><p>${esc(r.desc||"")}</p></div>`).join(""):'<p class="empty">리스크 없음</p>';
+    } else bSec.classList.add("hidden");
+
+    // nav (only visible sections)
+    const secs=[["s-people","사람별 모델"],["s-map","멘탈모델 지도"],["s-rel","관계·대립"],["s-time","시간축"],["s-bets","베팅·리스크"]];
+    $("navbtns").innerHTML=secs.filter(s=>!$(s[0]).classList.contains("hidden")).map(s=>`<button data-go="${s[0]}">${s[1]}</button>`).join("");
+    $("navbtns").onclick=e=>{const b=e.target.closest("button");if(b)$(b.dataset.go).scrollIntoView({behavior:"smooth"});};
+
+    // footer
+    $("f-note").textContent=meta.confidence_note||"";
+    $("f-srcs").innerHTML=(meta.sources||[]).map(s=>`<li>${esc(s)}</li>`).join("");
+  }
+
+  function drawGraph(people,relations){
+    const svg=$("relsvg"), W=800,H=500,cx=W/2,cy=H/2, R=Math.min(180, 60+people.length*22);
+    const idx=Object.fromEntries(people.map((p,i)=>[p.name,i]));
+    const pos=people.map((p,i)=>{const a=-Math.PI/2 + i*2*Math.PI/people.length;return{x:cx+R*Math.cos(a),y:cy+R*Math.sin(a),name:p.name,role:p.role||""};});
+    let s="";
+    // edges
+    relations.forEach(r=>{const a=pos[idx[r.from]],b=pos[idx[r.to]];if(!a||!b)return;
+      s+=`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${REL_COLOR[r.type]||'#556'}" stroke-width="2.5" stroke-opacity="0.75" ${r.type==='builds-on'?'stroke-dasharray="6 5"':''}/>`;});
+    // nodes
+    pos.forEach(p=>{
+      const outward=(p.x-cx); const anchor=outward>10?"start":outward<-10?"end":"middle";
+      const lx=p.x + (anchor==="start"?12:anchor==="end"?-12:0);
+      const ly=p.y + (Math.abs(outward)<10?(p.y<cy?-16:22):4);
+      s+=`<circle cx="${p.x}" cy="${p.y}" r="9" fill="#16181f" stroke="#8fd4a8" stroke-width="2.5"/>`;
+      s+=`<text x="${lx}" y="${ly}" fill="#e9ecf2" font-size="15" font-weight="700" text-anchor="${anchor}">${esc(p.name)}</text>`;
+      s+=`<text x="${lx}" y="${ly+16}" fill="#8b93a3" font-size="11.5" text-anchor="${anchor}">${esc(p.role)}</text>`;
+    });
+    svg.innerHTML=s;
+  }
+
+  // ---- data loading (file / drag-drop / sample) ----
+  function loadFile(f){
+    const rd=new FileReader();
+    rd.onload=()=>{try{const d=JSON.parse(rd.result);render(d);$("banner").classList.add("hidden");window.scrollTo({top:0});}catch(err){alert("JSON 파싱 실패: "+err.message);}};
+    rd.readAsText(f);
+  }
+  const pick=()=>$("file").click();
+  $("load").onclick=pick; $("load2").onclick=pick;
+  $("file").onchange=e=>{if(e.target.files[0])loadFile(e.target.files[0]);};
+  // drag-drop
+  const drop=$("drop");let dc=0;
+  window.addEventListener("dragenter",e=>{e.preventDefault();dc++;drop.classList.add("on");});
+  window.addEventListener("dragover",e=>e.preventDefault());
+  window.addEventListener("dragleave",e=>{dc--;if(dc<=0)drop.classList.remove("on");});
+  window.addEventListener("drop",e=>{e.preventDefault();dc=0;drop.classList.remove("on");const f=e.dataTransfer.files[0];if(f)loadFile(f);});
+
+  // initial: sample
+  render(JSON.parse($("sample-data").textContent));
+})();
+</script>
+</body>
+</html>

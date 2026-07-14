@@ -1,0 +1,123 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Mental Model Ontology — objects.json",
+  "type": "object",
+  "required": ["meta", "people", "models"],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": ["title", "org"],
+      "properties": {
+        "title": { "type": "string" },
+        "org": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "date_range": { "type": "string" },
+        "sensitivity": { "type": "string", "enum": ["L1", "L2", "L3"] },
+        "confidence_note": { "type": "string" },
+        "sources": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "meetings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "date"],
+        "properties": {
+          "id": { "type": "string" },
+          "date": { "type": "string" },
+          "title": { "type": "string" }
+        }
+      }
+    },
+    "people": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "summary", "evidence", "models"],
+        "properties": {
+          "name": { "type": "string" },
+          "role": { "type": "string" },
+          "summary": { "type": "string" },
+          "evidence": { "type": "string", "enum": ["high", "mid", "low"] },
+          "models": { "type": "array", "items": { "type": "string" }, "description": "각 항목은 models[].id 에 존재해야 함(참조 무결성)" },
+          "evolution": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["date", "note"],
+              "properties": { "date": { "type": "string" }, "note": { "type": "string" } }
+            }
+          }
+        }
+      }
+    },
+    "models": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "category", "title", "evidence", "people"],
+        "properties": {
+          "id": { "type": "string", "description": "kebab-case 고유 id" },
+          "category": { "type": "string", "description": "전략|제품|재무|기술|조직|리스크|기타" },
+          "title": { "type": "string", "description": "한 문장으로 된 믿음/판단 기준" },
+          "desc": { "type": "string" },
+          "evidence": { "type": "string", "enum": ["high", "mid", "low"] },
+          "people": { "type": "array", "items": { "type": "string" } },
+          "quote": { "type": "string", "description": "실제 발언 한 줄(있으면)" },
+          "first_seen": { "type": "string", "description": "meetings[].id 참조" },
+          "related": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "relations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["from", "to", "type"],
+        "properties": {
+          "from": { "type": "string" },
+          "to": { "type": "string" },
+          "type": { "type": "string", "enum": ["agree", "tension", "builds-on"] },
+          "topic": { "type": "string" },
+          "note": { "type": "string" }
+        }
+      }
+    },
+    "bets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["title"],
+        "properties": {
+          "tag": { "type": "string" },
+          "title": { "type": "string" },
+          "desc": { "type": "string" }
+        }
+      }
+    },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["title"],
+        "properties": {
+          "level": { "type": "string", "enum": ["high", "mid", "low"] },
+          "title": { "type": "string" },
+          "desc": { "type": "string" }
+        }
+      }
+    },
+    "timeline": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["date", "change"],
+        "properties": {
+          "date": { "type": "string" },
+          "meeting": { "type": "string" },
+          "change": { "type": "string" }
+        }
+      }
+    }
+  }
+}
