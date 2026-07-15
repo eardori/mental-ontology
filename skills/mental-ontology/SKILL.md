@@ -183,6 +183,25 @@ Part 2** (S1 기회 발굴 · S2 전략 옵션 · S3 설득 전략 · S4 정렬 
   simulations.
 - Large corpus sweeps (S1 step 1): fan out cheap parallel subagents by month/category.
 
+## Guide the user forward (every stage — this is the UX)
+
+Most users don't know what to ask a tool like this. **End every completed stage/answer
+by suggesting 2–4 concrete, copy-paste-ready next prompts — personalized with real
+names, topics, and dates from THEIR data** (query the DB/ontology for the top people
+and hottest recent topics to fill the templates). Never suggest generic placeholders
+like "X" when you can use an actual name.
+
+| Just finished | Suggest (fill 〈…〉 from their data) |
+|---|---|
+| Install / Stage 0 | "최근 Plaud 녹음 가져와서 정리해줘" · "이번 달 회의 다 코퍼스에 넣어줘" |
+| First sync (1–5) | "온톨로지 분석해줘" · "〈가장 많이 등장한 사람〉 화자 확인해줘" |
+| Ontology (6–7) | "〈핵심 인물〉은 어떤 사람이야?" · "〈핵심 인물〉 프로필 카드 만들어줘" · "우리 조직 어디가 안 맞아?" |
+| A query answer (8) | the natural follow-up + one strategy hook: "〈방금 주제〉로 전략 옵션 짜줘 (S2)" |
+| A strategy deliverable (9) | "〈추천 옵션〉 반대할 〈인물〉 설득 브리핑 만들어줘 (S3)" · "다음 달에 정렬 점검 다시 해줘 (S4)" |
+
+Format: a short "💡 이렇게 물어보세요 / Try asking:" block with the prompts in
+quotes, one per line — so the user can literally copy one and send it.
+
 ## Privacy & etiquette (always)
 
 - The corpus and ontology contain **highly sensitive** material (finances, M&A, personnel). Keep everything local; never publish or share externally; recommend git-ignoring the corpus if the user keeps it near a repo.
