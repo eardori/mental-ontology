@@ -1,19 +1,23 @@
 ---
 name: mental-ontology
 description: >
-  End-to-end pipeline from Plaud voice recordings to a mental-model ontology:
+  End-to-end pipeline from Plaud voice recordings to a queryable mental-model ontology:
   fetch transcripts via Plaud MCP (or transcribe raw audio locally with Whisper),
   attribute speakers interactively with a learning speaker-profile, clean and save
-  meeting markdown into a corpus with an index, then extract people's mental models
-  (beliefs, decision frames, tensions) into an ontology with an HTML viewer and report.
+  meeting markdown into a corpus with an index, extract people's mental models
+  (beliefs, decision frames, tensions) into an ontology with an HTML viewer and report,
+  build a SQLite database over everything, then answer questions and run business-ideation
+  / strategy workflows grounded in the data.
   Use when the user says things like: "회의 녹음 가져와서 정리해줘", "Plaud 녹음 분석해줘",
-  "멘탈모델 온톨로지 만들어줘", "새 미팅 코퍼스에 추가해줘", "process my Plaud recordings",
-  "build a mental model ontology", "analyze my meeting recordings".
+  "멘탈모델 온톨로지 만들어줘", "새 미팅 코퍼스에 추가해줘", "온톨로지에 물어봐줘",
+  "X는 어떻게 생각해?", "이 사람에게 맡겨도 될까", "미팅 준비해줘", "회의 데이터로 사업 아이디어",
+  "전략 짜줘", "process my Plaud recordings", "build a mental model ontology",
+  "query the ontology", "find opportunities in my meetings", "strategy from my meeting data".
 ---
 
-# Mental Ontology — Recording → Corpus → Mental-Model Ontology
+# Mental Ontology — Recording → Corpus → Ontology → Answers & Strategy
 
-Full pipeline: **Plaud recording → transcript → speaker attribution → clean markdown corpus → index → mental-model ontology (objects.json + HTML viewer + report)**.
+Full pipeline: **Plaud recording → transcript → speaker attribution → clean markdown corpus → index → mental-model ontology (objects.json + HTML viewer + report) → SQLite DB → question answering & strategy workflows**.
 
 Speak to the user in **the user's language** (these instructions are in English for precision; the user-facing output should match the user).
 
@@ -28,8 +32,11 @@ Speak to the user in **the user's language** (these instructions are in English 
 | 4 | Clean & save markdown | auto |
 | 5 | Index rebuild | auto after saving |
 | 6 | Ontology analysis & documentation | "온톨로지 분석해줘", "analyze" |
+| 7 | Build the database | auto after Stage 6; "DB 만들어줘" |
+| 8 | **Query mode** — Q&A over the data | "X는 어떻게 생각해?", "미팅 준비해줘" |
+| 9 | **Strategy mode** — ideation & planning | "사업 아이디어 찾아줘", "전략 짜줘" |
 
-The user may ask for the whole pipeline ("녹음 다 가져와서 온톨로지까지") or a single stage. Detect intent and run only what's needed. Stages 1–5 can run per-recording; Stage 6 runs over the whole corpus.
+The user may ask for the whole pipeline ("녹음 다 가져와서 온톨로지까지") or a single stage. Detect intent and run only what's needed. Stages 1–5 can run per-recording; Stages 6–7 run over the whole corpus; Stages 8–9 are the daily payoff — most sessions after initial setup land here.
 
 ---
 
@@ -126,12 +133,55 @@ Follow the full extraction spec in `assets/EXTRACTION.md`. Summary:
 2. **Extract per meeting** (parallel subagents on cheap model for large corpora): each person's mental models — *reusable beliefs/decision criteria*, not one-off opinions — with `evidence: high|mid|low` graded honestly (verbatim quote → high; role-based inference → mid; presence only → low), plus counterparts and tensions.
 3. **Synthesize** (stronger model): cluster instances into canonical models; build people cards, relations (`agree|tension|builds-on` — tensions are the most valuable signal), timeline of thinking evolution, strategy bets ↔ risks.
 4. **Mask sensitive data**: no equity %, amounts, valuations, health/legal personal matters in output — generalize.
-5. **Output** into `<corpus>/_ontology/`:
-   - `objects.json` per `assets/schema.json` (validate: every `people[].models` id exists in `models[].id`),
-   - `index.html`: copy `assets/viewer.html`, then **embed** objects.json by replacing the content of `<script id="sample-data" type="application/json">…</script>` and hiding the sample banner (`class="banner"` → `class="banner hidden"`) so it renders on double-click without a server,
-   - `REPORT.md`: executive summary (3–5 bullets: the person's/org's core thinking axes), per-person one-liners with evidence grades, notable tensions, timeline.
-6. **Incremental**: if `_ontology/objects.json` exists, merge — keep canonical model ids stable, add new evidence/quotes, append timeline entries, upgrade `evidence` when verbatim support appears.
-7. Tell the user: open `index.html` for the visual, `REPORT.md` for the narrative; adding more meetings enriches the timeline.
+5. **Ask how to visualize** (AskUserQuestion, once per analysis run — skip if the user already said):
+   - **인터랙티브 HTML 뷰어** — self-contained page (double-click to open)
+   - **md 종합 리포트** — narrative report (Obsidian/Notion friendly)
+   - **인물별 프로필 카드 (md)** — one file per person
+   - **전부** (default recommendation)
+6. **Generate per choice** into `<corpus>/_ontology/`:
+   - Always: `objects.json` per `assets/schema.json` (validate: every `people[].models` id exists in `models[].id`) — this is the data of record regardless of visualization choice.
+   - HTML → `index.html`: copy `assets/viewer.html`, then **embed** objects.json by replacing the content of `<script id="sample-data" type="application/json">…</script>` and hiding the sample banner (`class="banner"` → `class="banner hidden"`) so it renders on double-click without a server.
+   - md report → `REPORT.md`: executive summary (3–5 bullets: the person's/org's core thinking axes), per-person one-liners with evidence grades, notable tensions, timeline.
+   - Profile cards → `profiles/PROFILE-<이름>.md`, one per person: frontmatter (name/role/evidence/updated) → 핵심 관점 요약 → 멘탈모델 목록(카테고리·근거 등급·대표 인용) → 관계(합의/대립 상대와 주제) → 사고 변화(evolution) → 이 사람과 일할 때/설득할 때 팁 2–3줄. These cards are the unit people actually reuse — before a 1:1, before delegation, before a pitch.
+7. **Incremental**: if `_ontology/objects.json` exists, merge — keep canonical model ids stable, add new evidence/quotes, append timeline entries, upgrade `evidence` when verbatim support appears. Regenerate whichever visualizations the user chose (profiles: only changed people).
+8. Tell the user what was created and where; adding more meetings enriches the timeline. Then offer Stage 7–9 ("이제 데이터에 질문하거나 전략을 뽑을 수 있습니다").
+
+## Stage 7 — Build the database
+
+Run after every ontology update (and offer it to users still on viewer-only):
+
+```bash
+python3 <skill_dir>/scripts/build_db.py <corpus_path>
+```
+
+→ `<corpus>/_ontology/ontology.db` (SQLite, rebuilt idempotently): `people`, `models`
+(+`model_people`/`model_related`), `relations`, `timeline`, `bets`, `risks`, `meetings`,
+`utterances`, and `utterances_fts` (FTS5 full-text search over every utterance; check
+`meta.fts5` — if `no`, fall back to `LIKE`). No external dependencies.
+
+## Stage 8 — Query mode (Q&A over the data)
+
+When the user asks anything about people, meetings, topics, or history — answer from
+the DB + transcripts, per **`assets/PLAYBOOK.md` Part 1**. Core discipline:
+
+- SQL to locate (recipes in the playbook: person profile, tension map, FTS search,
+  timeline, topic ownership) → **Read the actual transcript** (`meetings.path`) for
+  nuance → answer with citations `(date · meeting)` and evidence grades.
+- Honesty: `high` assert / `mid` mark as 추정 / `low` say 근거 부족. Never fabricate.
+- If the DB is missing or stale (ontology newer than db mtime), run Stage 7 first.
+
+## Stage 9 — Strategy mode (business ideation & planning)
+
+For "find opportunities / build a strategy / prepare persuasion / check alignment /
+simulate a decision" requests, run the structured workflows in **`assets/PLAYBOOK.md`
+Part 2** (S1 기회 발굴 · S2 전략 옵션 · S3 설득 전략 · S4 정렬 리포트 · S5 결정 시뮬레이션).
+
+- Each workflow produces a **written md deliverable** in `<corpus>/_strategy/`
+  (create the folder if missing) — not just a chat answer.
+- Always include the honesty footer: data shows what people *said*, not market truth;
+  recommend the cheapest real-world validation per idea; label simulations as
+  simulations.
+- Large corpus sweeps (S1 step 1): fan out cheap parallel subagents by month/category.
 
 ## Privacy & etiquette (always)
 

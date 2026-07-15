@@ -1,35 +1,29 @@
 # Mental Ontology 🧠
 
-**회의 녹음만 쌓으면, 함께 일하는 사람들의 '사고방식 지도'가 만들어집니다.**
-**Turn your meeting recordings into a living map of how the people around you think.**
+> **회의 녹음만 넣으면, 참석자들의 사고방식(멘탈모델)을 인물·관계·시간축의 지도로 만들고 — 그 데이터에 질문을 던지고, 사업과 전략까지 뽑아내는 도구.**
+>
+> **Turn meeting recordings into a living map of how people think — then query it, and turn it into business ideas and strategy.**
 
-Plaud 녹음 → 전사 → 화자 확인 → 정제된 회의록 코퍼스 → **멘탈모델 온톨로지** (누가 어떤 믿음과 판단 기준으로 움직이는지, 누가 누구와 어디서 부딪히는지, 시간에 따라 생각이 어떻게 변하는지)를 Claude Code 스킬 하나로.
+사람마다 세상을 보는 **프레임(멘탈모델)** 이 있습니다. 회의 녹취를 이 도구에 넣으면 각자의 사고방식을 **객체와 관계의 그래프**로 뽑아냅니다. 그리고 그 데이터는 화면으로 보는 데서 끝나지 않습니다 — **DB로 쌓이고, 질문에 답하고, 전략의 재료가 됩니다.**
 
-A single Claude Code skill that takes you from Plaud voice recordings to a **mental-model ontology**: each person's beliefs and decision criteria, where people agree and clash, and how thinking evolves over time.
+리더가 얻는 것: *누구에게 어떤 일을 어떻게 맡길지 · 파트너/투자자와 어떻게 소통할지 · 다음 베팅을 어디에 걸지.*
 
 ---
 
-## 왜 이게 유용한가 / Why
+## 🎁 이 리포에 든 것 / What's inside
 
-사람마다 세상을 보는 **프레임(멘탈모델)** 이 있습니다. 리더가 그것을 알면 —
-- **위임이 정확해집니다**: 사람의 사고방식에 맞는 일을 맡기면 성공이 빨라집니다.
-- **정렬 포인트가 보입니다**: 회의 속 대립(tension)이야말로 조직 정렬의 핵심 신호입니다.
-- **파트너·투자자 소통이 쉬워집니다**: 상대의 프레임을 미리 지도로 그려두면 됩니다.
-
-Everyone operates on **frames (mental models)**. When a leader can see them: delegation fits the person, the real alignment gaps (tensions) surface, and partner/investor conversations start from the other side's frame.
-
-## 무엇이 만들어지나 / What you get
-
-| 산출물 / Output | 설명 / Description |
+| 파일 | 용도 |
 |---|---|
-| `transcripts/` | 정제된 회의록 md 코퍼스 (프론트매터·요약·화자별 타임스탬프) / clean meeting markdown corpus |
-| `_index/` | 카테고리·월별 인덱스 + 기계용 카탈로그 / human & machine index |
-| `_meta/speakers.json` | **화자 프로필 누적 학습** — 쓸수록 질문이 줄어듭니다 / learning speaker profiles |
-| `_ontology/objects.json` | 인물·멘탈모델·관계·시간축 데이터 / people, models, relations, timeline |
-| `_ontology/index.html` | 더블클릭으로 열리는 시각화 뷰어 (서버·인터넷 불필요) / self-contained viewer |
-| `_ontology/REPORT.md` | 경영자용 내러티브 리포트 / executive narrative report |
+| `skills/mental-ontology/` | **Claude Code 스킬** — 파이프라인 전체(수집→전사→화자→코퍼스→온톨로지→DB→질문→전략) |
+| `INSTALL.md` | Claude가 직접 실행하는 설치 가이드 (한 줄 요청으로 설치) |
+| `skills/.../assets/PLAYBOOK.md` | **질문·전략 워크북** — SQL 레시피 + 사업구상/전략 워크플로우 5종 |
+| `skills/.../assets/viewer.html` | 시각화 뷰어 — `objects.json` 더블클릭/드래그로 열림 (서버·인터넷 불필요) |
+| `skills/.../scripts/` | `build_db.py`(SQLite DB 생성) · `build_index.py`(인덱스) · `whisper_transcribe.py`(로컬 전사) |
+| `examples/sample-objects.json` | 완성 예시(가상 Acme) — 뷰어로 바로 열어 결과 형태 확인 |
 
-## 설치 / Install (2 minutes)
+---
+
+## 🚀 설치 (2분) / Install
 
 **Claude Code에게 이 한 줄만 말하세요 / Just tell Claude Code:**
 
@@ -37,46 +31,96 @@ Everyone operates on **frames (mental models)**. When a leader can see them: del
 >
 > "Clone https://github.com/eardori/mental-ontology and follow INSTALL.md to install it."
 
-Claude가 스킬 복사 → Plaud MCP 등록까지 알아서 합니다. 재시작 후 "Plaud 로그인해줘"라고 하면 브라우저 인증 한 번으로 끝. (요구사항: [Claude Code](https://claude.com/claude-code), Node 20+, [Plaud](https://www.plaud.ai) 계정)
+Claude가 스킬 복사 → Plaud MCP 등록까지 자동 수행. 재시작 후 **"Plaud 로그인해줘"** 한 번이면 끝.
+(요구사항: [Claude Code](https://claude.com/claude-code) · Node 20+ · [Plaud](https://www.plaud.ai) 계정 / Requires Claude Code, Node 20+, a Plaud account)
 
-Claude copies the skill and registers the Plaud MCP for you. After a restart, say "Log me into Plaud" — one browser authorization and you're done. (Requires Claude Code, Node 20+, a Plaud account.)
+## 🏁 3분 퀵스타트 / Quickstart
 
-## 사용법 / Usage
+설치 후 Claude Code에서 순서대로 말해보세요:
 
-설치 후 Claude Code에서 자연어로 / After install, just talk to Claude Code:
+1. **"최근 Plaud 녹음 가져와서 정리해줘"** — 녹음을 가져와 화자를 확인하며 회의록 코퍼스를 만듭니다. (첫 실행 시 코퍼스 저장 위치를 물어봅니다 — Obsidian 볼트 추천)
+2. **"온톨로지 분석해줘"** — 멘탈모델 지도 + 뷰어 + 리포트가 생성됩니다.
+3. **"X는 어떻게 생각하는 사람이야?"** — 이제 데이터에 질문을 던지세요. 이게 이 도구의 진짜 시작입니다.
+
+> 💡 **여러 회의를 넣을수록** 사람들의 사고가 어떻게 바뀌었는지 **시간축 변화**까지 쌓입니다.
+
+---
+
+## 📊 모은 데이터로 할 수 있는 3가지 / Three things you can do with the data
+
+### ① 보기 (View) — 사고방식 지도
+
+분석이 끝나면 **어떻게 볼지 스킬이 물어봅니다** — 원하는 형태로 골라 받으세요 (전부도 가능):
+
+| 형식 | 파일 | 이럴 때 |
+|---|---|---|
+| **인터랙티브 HTML 뷰어** | `_ontology/index.html` | 더블클릭 한 번으로 전체 지도 탐색 (모델·관계 그래프·시간축) |
+| **md 종합 리포트** | `_ontology/REPORT.md` | Obsidian/Notion에 넣고 읽는 내러티브 보고서 |
+| **인물별 프로필 카드** | `_ontology/profiles/PROFILE-이름.md` | 1:1 전, 위임 전, 피칭 전에 한 사람만 빠르게 훑기 |
+
+### ② 묻기 (Ask) — 회의 전체가 검색 가능한 DB가 됩니다
+
+온톨로지가 갱신될 때마다 **SQLite DB**(`_ontology/ontology.db`)가 만들어집니다 — 모든 회의·발화(전문 검색)·인물·모델·관계·시간축이 테이블로. Claude에게 자연어로 물으면 DB를 조회해 **날짜·실제 발언을 인용하며** 답합니다:
 
 ```
-"최근 Plaud 녹음 가져와서 정리해줘"          # fetch & clean recent recordings
-"이번 달 회의 다 코퍼스에 추가해줘"            # sync this month into the corpus
-"온톨로지 분석해줘"                         # build/update the ontology
-"우리 팀 리더들 사고방식 어떻게 달라?"        # ask questions over the ontology
+"제이드는 어떤 사람이야? 뭘 중요하게 생각해?"
+"이 프로젝트, 써니한테 맡겨도 될까?"
+"내일 ○○ 대표랑 미팅인데 준비 브리핑 만들어줘"
+"우리 조직에서 지금 어디가 안 맞아?"
+"'정산' 얘기가 나온 회의 전부 시간순으로 정리해줘"
+"지난 분기 동안 내 생각은 어떻게 변했어?"
 ```
 
-파이프라인 / The pipeline:
+### ③ 구상하기 (Strategize) — 회의 데이터에서 사업과 전략을 뽑아냅니다
+
+`PLAYBOOK.md`의 구조화된 워크플로우 5종 — 각각 **문서 산출물**을 만들어 `_strategy/` 폴더에 쌓습니다:
+
+| 워크플로우 | 이렇게 말하세요 | 산출물 |
+|---|---|---|
+| **S1 기회 발굴** | "회의 데이터에서 사업 아이디어 찾아줘" | 반복된 pain point → 기회 후보 테이블 + 첫 검증 실험 |
+| **S2 전략 옵션** | "유료화 전략 짜줘" | 본인의 실제 프레임에서 출발한 옵션 3개 비교 + pre-mortem |
+| **S3 설득 전략** | "투자자 ○○를 설득해야 해" | 상대의 언어로 번역한 논거 + 예상 반론·응답 |
+| **S4 정렬 리포트** | "조직 정렬 상태 점검해줘" | 대립(tension)별 상태·방치 비용·개입 제안 |
+| **S5 결정 시뮬레이션** | "이 결정하면 리더들이 어떻게 반응할까?" | 인물별 예상 반응(각자의 모델 근거) |
+
+> 전략 산출물에는 항상 정직성 각주가 붙습니다: *데이터는 "사람들이 말한 것"을 보여줄 뿐 시장의 진실이 아닙니다 — 아이디어마다 가장 싼 실전 검증 방법을 함께 제안합니다.*
+
+---
+
+## 🔄 일상 사용 루틴 / Daily routine
 
 ```
-Plaud 녹음 → ① 전사 가져오기 (없으면 ② 로컬 Whisper 전사)
-          → ③ 화자 확인 (맥락으로 후보 추론 → 사용자 선택 → 프로필 학습)
-          → ④ 정제 md 저장 → ⑤ 인덱스 → ⑥ 멘탈모델 온톨로지 + 뷰어 + 리포트
+회의 후:   "새 녹음 정리해줘"            (1분 — 화자 질문은 쓸수록 줄어듭니다)
+주 1회:    "온톨로지 업데이트해줘"        (증분 병합 — 시간축이 자랍니다)
+필요할 때:  질문 · 미팅 준비 · 전략 워크플로우
+월 1회:    "조직 정렬 상태 점검해줘"      (S4 — 대립의 조기 발견)
 ```
 
-- **화자 학습**: 처음엔 "Speaker 2가 누구인가요?"를 몇 번 묻지만, `speakers.json`에 프로필이 쌓이면 점점 조용해집니다.
-- **증분 분석**: 회의를 더 넣을수록 온톨로지가 풍부해지고 시간축(생각의 변화)이 쌓입니다.
-- **Speaker learning**: a few questions at first; the profile makes future runs quieter.
-- **Incremental**: more meetings → richer ontology and a longer thinking-evolution timeline.
+## 🔒 프라이버시 · 매너 / Privacy & etiquette
 
-## 프라이버시 / Privacy
+- **로컬 우선**: 코퍼스·DB·뷰어 모두 내 컴퓨터에만. 외부 전송 없음. 민감하면 Whisper 로컬 전사로 녹음도 밖에 안 나갑니다.
+- **개인 신상 마스킹**: 지분율·금액·건강·법적 사안은 산출물에서 자동 제외.
+- **분석 티 내지 않기**: 방법론 원안자의 조언 — 분석 대상에게 "분석당한다"는 인상을 주지 마세요. 이건 리더 본인의 사적 판단 보조 도구입니다.
+- **정직한 근거**: 실제 발언(verbatim)이 있으면 근거 등급이 올라가고, 없으면 "추정"으로 표기합니다.
 
-- **모든 데이터는 로컬**에 저장됩니다 (코퍼스 폴더 또는 Obsidian 볼트). 외부 전송 없음.
-- 지분·금액·개인 신상 등 민감 정보는 온톨로지 산출물에서 **자동 마스킹**합니다.
-- 이 도구는 리더 본인의 **사적인 판단 보조 도구**입니다 — 분석 대상에게 "분석당한다"는 인상을 주지 않도록 산출물 공유에 주의하세요.
-- All data stays **local** (your corpus folder / Obsidian vault). Sensitive details (equity, amounts, personal matters) are **masked** in ontology outputs. Treat results as a private judgment aid — be discreet.
+## 💡 팁 / Tips
+
+- 회의록 요약본보다 **원문 녹취**를 넣을수록 정확해집니다.
+- 정기 회의를 꾸준히 축적하면 팀 전원의 사고 지도 + 변화 추적이 가능해집니다.
+- 투자자·파트너 미팅에도 그대로 — 상대 프레임을 미리 지도로 그려두면 소통이 쉬워집니다.
+- 코퍼스를 **Obsidian 볼트**에 두면 회의록을 위키처럼 브라우징할 수 있습니다.
+
+## ❓ FAQ
+
+- **Plaud가 아닌 다른 녹음기여도 되나요?** — 네. 오디오 파일을 주면 Whisper로 로컬 전사합니다(`scripts/whisper_transcribe.py --audio`). Plaud MCP는 자동 수집이 편해질 뿐입니다.
+- **영어 회의도 되나요?** — 됩니다. 전사 언어 옵션(`--lang en`)과 온톨로지 추출 모두 다국어.
+- **DB는 뭘로 보나요?** — 그냥 Claude에게 물으면 됩니다. 직접 보려면 `sqlite3 ontology.db` 또는 아무 SQLite 뷰어.
+- **팀원과 공유해도 되나요?** — 데이터는 민감합니다. 공유 전 반드시 내용 검토를 — 기본은 본인 전용.
 
 ## 크레딧 / Credits
 
-- 멘탈모델 온톨로지 방법론 원안: **김태호 (Tab0)** — 회의록·문서·대화에서 사람들의 사고방식을 객체와 관계의 그래프로 추출한다는 아이디어.
-- Mental-model ontology methodology inspired by **Taeho Kim (Tab0)**.
-- Recording & transcription: [Plaud](https://www.plaud.ai) + [Plaud MCP](https://docs.plaud.ai/plaud-mcp-cli/mcp). Local transcription: OpenAI Whisper / mlx-whisper.
+- 멘탈모델 온톨로지 방법론 원안: **김태호 (Tab0)** — Mental-model ontology methodology inspired by **Taeho Kim (Tab0)**.
+- Recording: [Plaud](https://www.plaud.ai) + [Plaud MCP](https://docs.plaud.ai/plaud-mcp-cli/mcp) · Local transcription: OpenAI Whisper / mlx-whisper.
 
 ## License
 

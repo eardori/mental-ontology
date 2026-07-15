@@ -80,6 +80,11 @@ In the restarted session, have the user try:
 첫 실행 시 스킬이 코퍼스 저장 위치를 묻는다(기본 `~/MeetingCorpus`, Obsidian 볼트 추천).
 On first run the skill asks where to keep the corpus (default `~/MeetingCorpus`; an Obsidian vault works great).
 
+온톨로지까지 만든 뒤에는 데이터에 바로 질문할 수 있다 (DB는 자동 생성 — sqlite3는 파이썬 내장이라 추가 설치 없음):
+Once the ontology exists you can query it directly (the DB is built automatically — sqlite3 ships with Python):
+
+> "X는 어떻게 생각하는 사람이야?" / "회의 데이터에서 사업 아이디어 찾아줘"
+
 ---
 
 ## Uninstall / 제거
