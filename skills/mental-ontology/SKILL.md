@@ -91,6 +91,7 @@ Goal: replace "Speaker 1/2" and misattributed labels with real names, learning o
    - Strong contextual match to a known profile → propose as the default option.
    - Otherwise → ask.
 4. Ask with the AskUserQuestion tool, one compact question per unknown speaker (batch up to 4 per call). Options = top candidates with a one-line quote sample of that speaker; the user can always pick "Other" and type a name. Example question: "Speaker 2는 누구인가요? (샘플: '...정산 주기를 당기면...')".
+   - **Friction budget**: at ingest time, ask at most ONE batched question per sync (the most frequent unknowns). Defer the rest to **Backfill mode** — daily-loop friction is what silently kills data quality (skipped questions → Speaker N debt).
 5. Update `speakers.json` with confirmations (add aliases, meeting dates, refine traits). This makes future runs progressively quieter — that's the point.
    - **Aliases are load-bearing**: `build_db.py` joins transcripts to the ontology through them. Record every raw label a person appears under (한글 이름, 영어 이름, 별명 — e.g. `James(정우진)` ← `정우진`, `James`, `제임스`). `Name(Other)` style names get both halves matched automatically, but anything else must be listed.
 6. If the user says "몰라도 돼 / skip", keep generic labels and move on. Never block the pipeline on attribution.
@@ -135,14 +136,21 @@ Goal: replace "Speaker 1/2" and misattributed labels with real names, learning o
    ## 요약 / Summary
    <3–6 lines; use get_note if available>
 
+   ## 액션아이템 / Action items
+   - [ ] (요청자→담당자) 내용 (기한: YYYY-MM-DD)     # 화살표·기한은 알 수 있을 때만
+
    ## 트랜스크립트 / Transcript
    **[Name] (mm:ss)** utterance...
    ```
+   The 액션아이템 checklist is machine-parsed into the DB (`commitments`) and surfaces
+   as each person's 오픈 루프 in their dossier — **약속을 지키는 것이 관계의 신뢰다.**
+   Extract only commitments actually made in the meeting ("보내드릴게요", "다음 주까지");
+   don't invent tasks. Mark `- [x]` when a later meeting confirms completion.
 3. Category taxonomy (exactly one): `내부-주간회의 / 내부-전략 / 내부-1on1 / 외부-파트너 / 외부-고객영업 / 외부-투자IR / 강연-세미나 / 인터뷰 / 개인-통화 / 기타`.
 4. Title: if the Plaud name is descriptive, polish it; if it's an auto timestamp ("2026-07-10 16:15:15"), write a new title from content.
 5. **Relationship capture per meeting** (cheap, at ingest time — don't wait for Stage 6):
    - **New people** appearing in the meeting → add to the registry as `contact` (name + meeting date); if the meeting shows how they connect ("○○님 소개로"), record `intro_by`/`first_met_context` and consider a `network[]` entry (kind=소개) in objects.json.
-   - **Personal context** worth remembering (가족·관심사·근황 — per the privacy policy) → append to that person's `personal[]` with the meeting date.
+   - **Personal context** worth remembering (가족·관심사·근황 — per the privacy policy) → append to that person's `personal[]` with the meeting date **and a usability tag** `use: 공개|사적|언급금지` (공개 = they said it openly/repeatedly; 사적 = mentioned once in a private aside; 언급금지 = knowing it would feel invasive — react only if THEY bring it up). Dossiers render △/⛔ markers from this — it's what keeps a briefing from turning into a creepy reveal.
    - After saving, give the user a 3-line digest: 새 인물 / 새 관계 신호 / 기억할 개인 맥락.
 6. **Batch processing**: for many recordings, fan out with parallel subagents (cheapest capable model), one recording per agent, each following stages 1→4. Speaker questions (Stage 3) must run in the main conversation — collect unknown speakers from subagent results, ask the user once, then patch the files.
 
@@ -165,6 +173,7 @@ no Stage 6 required.
 Follow the full extraction spec in `assets/EXTRACTION.md`. Summary:
 
 1. **Scope**: ask the user once — whole corpus vs. a period/category vs. one person deep-dive. Exclude `개인-통화` and junk by default.
+   - **Cold start**: with fewer than ~10 meetings the ontology will be thin and low-evidence — say so honestly, lead with the 회의록 정리+검색 value, and suggest returning to ontology once 10+ meetings accumulate. Don't oversell a map drawn from 3 data points.
 2. **Extract per meeting** (parallel subagents on cheap model for large corpora): each person's mental models — *reusable beliefs/decision criteria*, not one-off opinions — with `evidence: high|mid|low` graded honestly (verbatim quote → high; role-based inference → mid; presence only → low), plus counterparts and tensions.
    - **Attribution discipline** (EXTRACTION.md rule 0): a model's `holders` = who *holds* the belief; `about` = whom it *concerns*. "정우진이 경쟁사 메가스테이에 대해 한 말"의 holder는 정우진이다. Org-held models (제3자 추정) cap at `mid`. Person names must be `_meta/speakers.json` canonical names — that's what joins the ontology to transcripts in the DB.
 3. **Synthesize** (stronger model): cluster instances into canonical models; build people cards, relations (`agree|tension|builds-on` — tensions are the most valuable signal), timeline of thinking evolution, strategy bets ↔ risks.
@@ -216,6 +225,9 @@ the DB + transcripts, per **`assets/PLAYBOOK.md` Part 1**. Core discipline:
   timeline, topic ownership) → **Read the actual transcript** (`meetings.path`) for
   nuance → answer with citations `(date · meeting)` and evidence grades.
 - Honesty: `high` assert / `mid` mark as 추정 / `low` say 근거 부족. Never fabricate.
+- **Freshness**: a model whose `last_seen` is 6+ months behind the newest meeting
+  (validate.py flags these as STALE) is answered in past tense — "당시에는 ~라고
+  봤습니다 (이후 확인 없음)" — never as their current view. People change.
 - If the DB is missing or stale (ontology newer than db mtime), run Stage 7 first.
 
 ## Stage 9 — Strategy mode (business ideation & planning)
@@ -224,8 +236,17 @@ For "find opportunities / build a strategy / prepare persuasion / check alignmen
 simulate a decision" requests, run the structured workflows in **`assets/PLAYBOOK.md`
 Part 2** (S1 기회 발굴 · S2 전략 옵션 · S3 설득 전략 · S4 정렬 리포트 · S5 결정 시뮬레이션).
 
+- **The strategy register is a living asset**: `bets[]`/`risks[]` in objects.json
+  carry `status` (검토중→진행중→실현/폐기 · 관찰중→완화중/현실화/해소), `owner`,
+  `source` meetings, `related_models`. Every S1/S2/S4 run **updates the register**
+  (new entries, status transitions with the evidencing meeting) — never re-extract
+  from scratch. Then rebuild the DB so queries see it.
 - Each workflow produces a **written md deliverable** in `<corpus>/_strategy/`
-  (create the folder if missing) — not just a chat answer.
+  (create the folder if missing) and appends one line to `_strategy/INDEX.md`
+  (date · workflow · file · 한 줄 결론) so strategy work accumulates instead of
+  scattering.
+- Deliverables must ground in the register: cite bet/risk entries and model ids,
+  and end with a **register diff** ("이번 실행으로 바뀐 것: bet X 검토중→진행중").
 - Always include the honesty footer: data shows what people *said*, not market truth;
   recommend the cheapest real-world validation per idea; label simulations as
   simulations.

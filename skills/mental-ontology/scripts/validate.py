@@ -17,10 +17,72 @@ Checks
 
 Run after every Stage 6/7. No external dependencies (python3 stdlib only).
 """
-import os, sys, json, sqlite3
+import os, re, sys, json, sqlite3, difflib
+from datetime import date, timedelta
 
 EV = {"high", "mid", "low"}
 REL = {"agree", "tension", "builds-on"}
+STALE_DAYS = 180  # last_seen older than this (vs newest meeting) → belief may have changed
+
+def _norm_text(s):
+    return re.sub(r'[\s.,!?\'"“”‘’…()\[\]]+', '', s)
+
+def _frag_score(frag, cand):
+    """how much of `frag` appears contiguously inside `cand` (0..1)"""
+    if not frag:
+        return 1.0
+    m = difflib.SequenceMatcher(None, frag, cand).find_longest_match(0, len(frag), 0, len(cand))
+    return m.size / len(frag)
+
+def verify_quotes(c, models, fts_on):
+    """Ground every model quote in the actual utterances (STT-tolerant).
+    Returns (checked, misses:[(model_id, best_score)])."""
+    checked, misses = 0, []
+    for m in models:
+        quote = (m.get("quote") or "").strip()
+        if not quote:
+            continue
+        checked += 1
+        frags = [f.strip() for f in re.split(r'\.{2,}|…', quote) if len(f.strip()) >= 6] or [quote]
+        toks = sorted(re.findall(r'[가-힣A-Za-z0-9]{2,}', quote), key=len, reverse=True)[:3]
+        cands = []
+        if toks and fts_on:
+            try:
+                q = " OR ".join(f'"{t}"' for t in toks)
+                cands = [r[0] for r in c.execute(
+                    "SELECT text FROM utterances_fts WHERE utterances_fts MATCH ? LIMIT 400", (q,))]
+            except sqlite3.OperationalError:
+                cands = []
+        if not cands and toks:
+            cands = [r[0] for r in c.execute(
+                "SELECT text FROM utterances WHERE text LIKE ? LIMIT 400", (f"%{toks[0]}%",))]
+        best = 0.0
+        nfrags = [_norm_text(f) for f in frags]
+        for cand in cands:
+            nc = _norm_text(cand)
+            score = min(_frag_score(nf, nc) for nf in nfrags)
+            best = max(best, score)
+            if best >= 0.55:
+                break
+        if best < 0.55:
+            misses.append((m.get("id"), round(best, 2)))
+    return checked, misses
+
+def stale_models(models, newest):
+    """models whose last evidence predates the newest meeting by STALE_DAYS+"""
+    try:
+        ref = date.fromisoformat(str(newest)[:10])
+    except (ValueError, TypeError):
+        return []
+    out = []
+    for m in models:
+        d = str(m.get("last_seen") or m.get("first_seen") or "")[:10]
+        try:
+            if ref - date.fromisoformat(d) > timedelta(days=STALE_DAYS):
+                out.append((m.get("id"), d))
+        except ValueError:
+            continue
+    return out
 
 def main():
     corpus = os.path.abspath(sys.argv[1]) if len(sys.argv) > 1 else os.getcwd()
@@ -160,7 +222,26 @@ def main():
         db = sqlite3.connect(dbp)
         c = db.cursor()
         try:
+            fts_on = (c.execute("SELECT value FROM meta WHERE key='fts5'").fetchone()
+                      or ["no"])[0] == "yes"
             total = c.execute("SELECT COUNT(*) FROM utterances").fetchone()[0]
+            if total:
+                checked, missq = verify_quotes(c, models, fts_on)
+                if missq:
+                    warns.append(f"{len(missq)}/{checked} model quotes NOT grounded in any "
+                                 f"utterance (환각이거나 원문 유실 — 재확인 필요): "
+                                 + ", ".join(f"{i}({s})" for i, s in missq[:8])
+                                 + (" …" if len(missq) > 8 else ""))
+                else:
+                    infos.append(f"quotes: {checked}/{checked} grounded in utterances")
+                newest = c.execute("SELECT MAX(date) FROM meetings").fetchone()[0]
+                st = stale_models(models, newest)
+                if st:
+                    warns.append(f"{len(st)} models STALE (last evidence {STALE_DAYS}+ days "
+                                 f"before newest meeting {newest}) — answer in past tense "
+                                 "('당시에는') until re-confirmed: "
+                                 + ", ".join(f"{i}({d})" for i, d in st[:8])
+                                 + (" …" if len(st) > 8 else ""))
             if total:
                 canon = c.execute("""SELECT COUNT(*) FROM utterances
                     WHERE speaker IN (SELECT DISTINCT canonical FROM person_aliases)""").fetchone()[0]

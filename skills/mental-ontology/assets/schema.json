@@ -91,6 +91,7 @@
           "from": { "type": "string", "description": "people[].name 참조 (person 또는 org)" },
           "to": { "type": "string", "description": "people[].name 참조" },
           "type": { "type": "string", "enum": ["agree", "tension", "builds-on"] },
+          "direction": { "type": "string", "enum": ["mutual", "one-way"], "description": "one-way = from만 인식하는 비대칭 관계(예: A는 B에게 불만인데 B는 모름) — 관계 관리의 핵심 신호" },
           "topic": { "type": "string" },
           "note": { "type": "string" }
         }
@@ -114,25 +115,35 @@
     },
     "bets": {
       "type": "array",
+      "description": "전략 대장(living register) — 정적 추출물이 아니라 상태를 가진 자산. S1/S2 실행 때마다 갱신",
       "items": {
         "type": "object",
         "required": ["title"],
         "properties": {
           "tag": { "type": "string" },
           "title": { "type": "string" },
-          "desc": { "type": "string" }
+          "desc": { "type": "string" },
+          "status": { "type": "string", "enum": ["검토중", "진행중", "보류", "폐기", "실현"], "description": "생애주기 — 갱신 시 근거 회의를 source에 추가" },
+          "owner": { "type": "string", "description": "이 베팅을 미는 사람 — people[].name 참조" },
+          "date": { "type": "string", "description": "최근 상태 변경일 YYYY-MM-DD" },
+          "source": { "type": "array", "items": { "type": "string" }, "description": "근거 회의 date 또는 meetings[].id 목록" },
+          "related_models": { "type": "array", "items": { "type": "string" }, "description": "이 베팅을 뒷받침/제약하는 models[].id" }
         }
       }
     },
     "risks": {
       "type": "array",
+      "description": "전략 대장의 리스크 축 — bets와 동일하게 생애주기 관리",
       "items": {
         "type": "object",
         "required": ["title"],
         "properties": {
           "level": { "type": "string", "enum": ["high", "mid", "low"] },
           "title": { "type": "string" },
-          "desc": { "type": "string" }
+          "desc": { "type": "string" },
+          "status": { "type": "string", "enum": ["관찰중", "완화중", "해소", "현실화"] },
+          "mitigation": { "type": "string", "description": "완화 조치 (있으면)" },
+          "source": { "type": "array", "items": { "type": "string" } }
         }
       }
     },

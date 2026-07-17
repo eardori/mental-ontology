@@ -57,6 +57,9 @@ UTT_PATTERNS = [
 # a line that *looks* like it carries an utterance timestamp near the start
 UTT_MAYBE = re.compile(rf'^\s*(?:\*{{0,2}}\s*\[?[^\n]{{0,40}}?\({TS}\)|\[{TS})')
 GENERIC = re.compile(r'^(speaker|발화자|화자)\s*\d*$', re.I)
+# commitment checkbox: - [ ] (요청자→담당자) 내용 (기한: YYYY-MM-DD) — 화살표/기한은 선택
+COMMIT = re.compile(r'^-\s*\[([ xX])\]\s*(?:\(([^)→>]*?)(?:→|->)([^)]*)\)\s*)?(.+?)'
+                    r'(?:\s*\((?:기한|due)[:\s]*([0-9./-]+)\))?\s*$')
 
 def parse_utt(line):
     for pat in UTT_PATTERNS:
@@ -157,8 +160,10 @@ def main():
     CREATE TABLE person_meetings(person TEXT, meeting_rowid INTEGER, src TEXT);
     CREATE INDEX idx_pm_person ON person_meetings(person);
     CREATE TABLE timeline(date TEXT, meeting TEXT, change TEXT);
-    CREATE TABLE bets(tag TEXT, title TEXT, desc TEXT);
-    CREATE TABLE risks(level TEXT, title TEXT, desc TEXT);
+    CREATE TABLE bets(tag TEXT, title TEXT, desc TEXT, status TEXT, owner TEXT, date TEXT, source TEXT);
+    CREATE TABLE risks(level TEXT, title TEXT, desc TEXT, status TEXT, mitigation TEXT, source TEXT);
+    CREATE TABLE commitments(meeting_rowid INTEGER, done INTEGER, from_person TEXT,
+                             to_person TEXT, text TEXT, due TEXT);
     CREATE TABLE meetings(source_id TEXT, date TEXT, title TEXT, category TEXT,
                           duration_min INTEGER, transcribed_by TEXT, path TEXT, participants TEXT);
     CREATE TABLE utterances(meeting_rowid INTEGER, speaker TEXT, speaker_raw TEXT, ts TEXT, text TEXT);
@@ -207,9 +212,13 @@ def main():
             c.execute("INSERT INTO timeline VALUES(?,?,?)",
                       (t.get("date", ""), t.get("meeting", ""), t.get("change", "")))
         for b in d.get("bets", []):
-            c.execute("INSERT INTO bets VALUES(?,?,?)", (b.get("tag", ""), b.get("title", ""), b.get("desc", "")))
+            c.execute("INSERT INTO bets VALUES(?,?,?,?,?,?,?)",
+                      (b.get("tag", ""), b.get("title", ""), b.get("desc", ""), b.get("status", ""),
+                       b.get("owner", ""), b.get("date", ""), ", ".join(b.get("source", []))))
         for r in d.get("risks", []):
-            c.execute("INSERT INTO risks VALUES(?,?,?)", (r.get("level", ""), r.get("title", ""), r.get("desc", "")))
+            c.execute("INSERT INTO risks VALUES(?,?,?,?,?,?)",
+                      (r.get("level", ""), r.get("title", ""), r.get("desc", ""),
+                       r.get("status", ""), r.get("mitigation", ""), ", ".join(r.get("source", []))))
 
     # --- speaker alias map ---
     amap, conflicts, n_canon = load_alias_map(corpus, d.get("people", []))
@@ -280,6 +289,15 @@ def main():
             if not s:
                 flush()
                 continue
+            cm = COMMIT.match(s)
+            if cm:
+                flush()
+                done, frm, to, text, due = cm.groups()
+                c.execute("INSERT INTO commitments VALUES(?,?,?,?,?,?)",
+                          (mid, 0 if done == " " else 1,
+                           resolve(strip_wrappers(frm or ""), amap),
+                           resolve(strip_wrappers(to or ""), amap), text.strip(), due or ""))
+                continue
             got = parse_utt(s)
             if got:
                 flush()
@@ -335,7 +353,9 @@ def main():
           + (f" | CONFLICTS dropped: {sorted(conflicts)}" if conflicts else ""))
     print(f"  interactions: {q('SELECT COUNT(*) FROM person_meetings')} person-meeting links "
           f"across {q('SELECT COUNT(DISTINCT person) FROM person_meetings')} people | "
-          f"network edges {q('SELECT COUNT(*) FROM network')}")
+          f"network edges {q('SELECT COUNT(*) FROM network')} | "
+          f"commitments {q('SELECT COUNT(*) FROM commitments')} "
+          f"({q('SELECT COUNT(*) FROM commitments WHERE done=0')} open)")
     if n_utt:
         pct = lambda k: f"{100.0 * spk_stats[k] / n_utt:.1f}%"
         print(f"  speaker attribution: canonical {pct('canonical')} · other-name {pct('raw-name')}"

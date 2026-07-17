@@ -79,8 +79,29 @@ def dossier(name, entry, db, models_of, out_path):
     personal = entry.get("personal") or []
     if personal:
         L.append("## 개인 맥락")
+        USE = {"사적": "△사적 ", "언급금지": "⛔언급금지 "}
+        flagged = False
         for p in personal:
-            L.append(f"- ({p['date']}) {p['note']}" if isinstance(p, dict) else f"- {p}")
+            if isinstance(p, dict):
+                mark = USE.get(p.get("use", ""), "")
+                flagged = flagged or bool(mark)
+                L.append(f"- {mark}({p.get('date', '')}) {p.get('note', '')}")
+            else:
+                L.append(f"- {p}")
+        if flagged:
+            L.append("> △/⛔ 표시는 상대가 먼저 꺼낼 때만 반응할 것 — 내가 먼저 언급하면 '기록당한다'는 인상을 준다.")
+        L.append("")
+
+    open_loops = q("""SELECT c.done, c.from_person, c.to_person, c.text, c.due, m.date
+                      FROM commitments c JOIN meetings m ON m.rowid = c.meeting_rowid
+                      WHERE c.done = 0 AND (c.from_person = ? OR c.to_person = ?)
+                      ORDER BY CASE WHEN c.due='' THEN 1 ELSE 0 END, c.due, m.date""",
+                   name, name)
+    if open_loops:
+        L.append(f"## 오픈 루프 — 미완료 약속 ({len(open_loops)})")
+        for _done, frm, to, text, due, mdate in open_loops:
+            arrow = f"{frm or '?'}→{to or '?'}"
+            L.append(f"- [ ] ({arrow}) {text}" + (f" · 기한 {due}" if due else "") + f" · `{mdate}`")
         L.append("")
 
     if models_of.get(name):

@@ -66,7 +66,9 @@ def make_transcript(root, fname, title, date, sid, body, cat="내부-전략",
 
 SPEAKERS = [
     {"name": "정우진", "role": "CEO", "org": "Acme",
-     "aliases": ["우진님", "James(정우진)"], "traits": "", "meetings": []},
+     "aliases": ["우진님", "James(정우진)"], "traits": "", "meetings": [],
+     "personal": [{"date": "2026-05-20", "note": "10월 마라톤 준비 중", "use": "사적"},
+                  {"date": "2026-05-21", "note": "가족 건강 이슈 언급", "use": "언급금지"}]},
     {"name": "이서연", "role": "CPO", "org": "Acme", "aliases": ["서연님"],
      "traits": "", "meetings": []},
     {"name": "박도현", "role": "CFO", "org": "Acme", "aliases": [],
@@ -106,6 +108,8 @@ def objects_v2(m1_path, m2_path):
             {"a": "이서연", "b": "정우진", "kind": "소개", "since": "2024-11-01",
              "note": "SaaS 밋업에서 소개"},
         ],
+        "bets": [{"tag": "test", "title": "구독료 단계적 인상", "status": "진행중",
+                  "owner": "정우진", "date": "2026-05-20", "source": ["2026-05-20"]}],
         "timeline": [{"date": "2026-05-20", "meeting": "m1", "change": "방향 제시"}],
     }
 
@@ -116,10 +120,15 @@ def build_corpus_v2(root):
         "**[Speaker 2] (00:15)** 미확정 화자.\n"
         "**우진님 (00:30)** 대괄호 없는 별칭.\n"
         "**[James(정우진)] (00:45)** 괄호 포함 별칭.\n"
+        "**[정우진] (00:50)** 속도가 먼저다, 일단 던지고 배운다.\n"
         "**(01:00)** 화자 없는 별표.\n"
         "(01:10) 맨 괄호 타임스탬프.\n"
         "**[] (01:20)** 빈 대괄호.\n"
-        "**[Naomi Park] (1:02:33)** 한 시간 넘는 타임스탬프.")
+        "**[Naomi Park] (1:02:33)** 한 시간 넘는 타임스탬프.\n"
+        "\n"
+        "## 액션아이템\n"
+        "- [ ] (정우진→이서연) 번들 기능 스펙 초안 (기한: 2026-05-27)\n"
+        "- [x] (서연님→정우진) 가격 리서치 공유")
     make_transcript(root, "2026-05-21_통화-선지급.md", "통화 선지급", "2026-05-21", "acme-0521",
         "**(시간: 0:00)** 시간 접두어 형식.\n"
         "[00:01 - 00:36] 대괄호 범위 형식.\n"
@@ -164,8 +173,13 @@ def test_pipeline_v2(tmp):
 
     db = sqlite3.connect(root / "_ontology" / "ontology.db")
     q = lambda s, *a: db.execute(s, a).fetchall()
-    check("utterance count == 19", q("SELECT COUNT(*) FROM utterances")[0][0] == 19,
+    check("utterance count == 20", q("SELECT COUNT(*) FROM utterances")[0][0] == 20,
           str(q("SELECT COUNT(*) FROM utterances")))
+    got = q("SELECT done, from_person, to_person, due FROM commitments ORDER BY done")
+    check("commitments parsed with alias resolution (서연님→이서연)",
+          got == [(0, "정우진", "이서연", "2026-05-27"), (1, "이서연", "정우진", "")], str(got))
+    got = q("SELECT status, owner FROM bets")
+    check("strategy register status/owner in DB", got == [("진행중", "정우진")], str(got))
     got = q("SELECT speaker FROM utterances WHERE text LIKE '위키링크 화자%'")
     check("wikilink-wrapped speaker label resolves ([[정우진]] → 정우진)",
           got == [("정우진",)], str(got))
@@ -206,6 +220,7 @@ def test_pipeline_v2(tmp):
     rc, out = run("validate.py", root)
     check("validate passes on clean v2 corpus", rc == 0, out)
     check("validate reports attribution coverage", "coverage:" in out, out)
+    check("quote verification: grounded quote passes", "quotes: 1/1 grounded" in out, out)
 
 def test_dossiers(tmp):
     print("\n[1b] build_dossiers — person dossiers, INDEX, manual-notes preservation")
@@ -219,6 +234,10 @@ def test_dossiers(tmp):
           "접촉 이력" in t and "통화-선지급" in t, t[:400])
     check("dossier shows held models", "속도가 먼저다" in t, "")
     check("dossier shows network edge", "소개" in t and "이서연" in t, "")
+    check("dossier shows open loops (commitments)",
+          "오픈 루프" in t and "번들 기능 스펙 초안" in t, t[:600])
+    check("personal-context usability tags rendered (⛔ + caution)",
+          "⛔언급금지" in t and "먼저 꺼낼 때만" in t, "")
     dp.write_text(t.replace(
         "(여기에 자유롭게 메모하세요 — 도시에를 다시 생성해도 이 섹션은 보존됩니다)",
         "마라톤 완주 축하 문자 보낼 것"), encoding="utf-8")
@@ -242,12 +261,16 @@ def test_validate_catches_errors(tmp):
             m["evidence"] = "high"             # … with high evidence → error
         if m["id"] == "value-first":
             m["related"] = ["no-such-model"]   # broken reference → error
+            m["quote"] = "이 발언은 회의록 어디에도 존재하지 않는 환각 인용이다"
+            m["last_seen"] = "2024-01-01"      # far behind newest meeting → stale
     op.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
     rc, out = run("validate.py", bad)
     check("validate exits 1 on corrupted ontology", rc == 1, out)
     check("org-evidence cap violation reported", "capped at 'mid'" in out, out)
     check("broken related id reported", "no-such-model" in out, out)
     check("holder-list inconsistency reported", "not one of its holders" in out, out)
+    check("hallucinated quote flagged as NOT grounded", "NOT grounded" in out, out)
+    check("stale model flagged", "STALE" in out, out)
 
 def test_migration_v1_to_v2(tmp):
     print("\n[3] migrate_objects — v1 → v2 classification, canonicalization, capping")

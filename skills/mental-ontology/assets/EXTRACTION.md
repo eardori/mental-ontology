@@ -42,17 +42,37 @@ Every model has **holders** (who *holds* the belief) and optionally **about**
 
 Never present speculation as fact. Weak grounding stays `low`.
 
+**A verbatim quote proves transcription, not sincerity.** Jokes, sarcasm, venting,
+and heat-of-the-moment exclamations ("회사 팔아버릴까") are NOT models even when
+perfectly quoted — skip them, or if the sentiment recurs seriously, extract with
+`mid` and note the tonal uncertainty. STT has no tone channel; when the surrounding
+context reads like banter, believe the context.
+
+**Contradiction beats repetition.** If a later meeting contradicts a model, do not
+keep it `high`: downgrade it, or move the shift into `evolution`/`timeline` (the
+change IS the signal). `last_seen` must reflect the last *confirming* evidence —
+validate.py flags models 6+ months behind the newest meeting as STALE, and Stage 8
+answers them in past tense.
+
 ### 3) Relations — the most valuable part
 Capture who **agrees / clashes (tension) / builds-on** whom, on what topic.
 **Tensions are the key signal** for delegation and alignment (e.g. A: speed-first vs
-B: quality-first). Do not smooth them over.
+B: quality-first). Do not smooth them over — but do not manufacture them either:
+**a corpus with zero real tensions must report zero tensions.** Normal difference
+of opinion that resolved in the same meeting is not a tension.
+- Mark asymmetry with `direction: one-way` when only `from` perceives the conflict
+  (A는 B에게 불만인데 B는 모름) — that asymmetry is the actionable part.
 
 ### 4) Timeline (multi-meeting corpora)
 - Per-person `evolution`: dated notes on how their thinking shifted.
 - Org-level `timeline`: phases of collective thinking (ground each phase in actual dates).
 
-### 5) Bets ↔ Risks
-Execution candidates (bets) that surfaced, matched against the risks that constrain them.
+### 5) Bets ↔ Risks — the strategy register
+Execution candidates (bets) matched against the risks that constrain them. This is
+a **living register, not a snapshot**: entries carry `status` (bets: 검토중→진행중→
+실현/폐기/보류 · risks: 관찰중→완화중/현실화/해소), `owner`, `source` meetings, and
+`related_models`. On incremental runs, transition statuses with evidence instead of
+re-extracting — "5월엔 검토, 7월에 진행" is exactly the history a leader wants back.
 
 ### 6) Network — 사회적 관계 (separate axis from relations)
 `relations` = how people's *thinking* interacts. `network` = how people are *actually
@@ -105,10 +125,10 @@ See `schema.json` for the JSON Schema. Shape:
     "quote": "", "count": 1, "first_seen": "YYYY-MM-DD", "last_seen": "YYYY-MM-DD",
     "related": ["other-model-id"]
   }],
-  "relations": [{ "from": "", "to": "", "type": "agree|tension|builds-on", "topic": "", "note": "" }],
+  "relations": [{ "from": "", "to": "", "type": "agree|tension|builds-on", "direction": "mutual|one-way", "topic": "", "note": "" }],
   "network": [{ "a": "", "b": "", "kind": "소개|협업|투자|사제|친분|거래|경쟁|기타", "since": "", "note": "", "source": "" }],
-  "bets": [{ "tag": "", "title": "", "desc": "" }],
-  "risks": [{ "level": "high|mid|low", "title": "", "desc": "" }],
+  "bets": [{ "tag": "", "title": "", "desc": "", "status": "검토중|진행중|보류|폐기|실현", "owner": "", "date": "", "source": [], "related_models": [] }],
+  "risks": [{ "level": "high|mid|low", "title": "", "desc": "", "status": "관찰중|완화중|해소|현실화", "mitigation": "", "source": [] }],
   "timeline": [{ "date": "", "meeting": "m1", "change": "" }]
 }
 ```

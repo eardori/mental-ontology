@@ -89,6 +89,11 @@ GROUP BY p2.person ORDER BY n DESC LIMIT 10;
 -- J. Network — 소개의 연쇄, 관계 종류별 조회
 SELECT kind, a, b, since, note FROM network WHERE a LIKE '%정우진%' OR b LIKE '%정우진%';
 SELECT a AS 소개자, b AS 소개받은사람, note FROM network WHERE kind = '소개';
+
+-- K. 오픈 루프 — 미완료 약속 (사람별·기한순; 트랜스크립트 액션아이템 체크박스에서 파싱)
+SELECT c.from_person, c.to_person, c.text, c.due, m.date, m.title
+FROM commitments c JOIN meetings m ON m.rowid = c.meeting_rowid
+WHERE c.done = 0 ORDER BY CASE WHEN c.due='' THEN 1 ELSE 0 END, c.due;
 ```
 
 ### Question patterns → how to answer
@@ -105,7 +110,8 @@ SELECT a AS 소개자, b AS 소개받은사람, note FROM network WHERE kind = '
 | "X를 언제 처음/마지막으로 만났지?" | Recipe G — 또는 `people/X.md` 도시에 frontmatter가 즉답 |
 | "요즘 소홀했던 사람 없나?" | Recipe H → 오래 못 만난 상위 인물 + 마지막 회의의 미결 주제를 함께 제시(연락 명분) |
 | "X를 누가 소개해줬지? / X랑 같이 아는 사람?" | Recipe J (network) + Recipe I (동석) + 레지스트리 `intro_by` |
-| "X 근황/개인적인 거 뭐 있었지?" | `people/X.md` 도시에의 개인 맥락 + 수기 메모 섹션 |
+| "X 근황/개인적인 거 뭐 있었지?" | `people/X.md` 도시에의 개인 맥락 + 수기 메모 — **△/⛔ 태그 확인**: 사적·언급금지 항목은 "상대가 먼저 꺼낼 때만"이라고 함께 알려줄 것 |
+| "내가 뭐 약속했더라? / X한테 진 빚?" | Recipe K → 기한 지난 것 먼저, 근거 회의와 함께 |
 
 ---
 
@@ -113,6 +119,20 @@ SELECT a AS 소개자, b AS 소개받은사람, note FROM network WHERE kind = '
 
 Structured workflows. Each produces a **written deliverable** (md), not just chat.
 Always end with an honesty footer: what the data supports vs. what is speculation.
+
+**전략 대장 (the strategy register)** — `bets[]`/`risks[]` are living assets with
+`status`/`owner`/`source`/`related_models` (see schema). Every workflow below reads
+the register first, updates it last (status transitions cite the evidencing meeting),
+and ends its deliverable with a register diff. Deliverables append one line to
+`_strategy/INDEX.md` (date · workflow · file · 한 줄 결론).
+
+```sql
+-- 전략 대장 현황
+SELECT status, tag, title, owner, date FROM bets ORDER BY
+  CASE status WHEN '진행중' THEN 0 WHEN '검토중' THEN 1 WHEN '보류' THEN 2 ELSE 3 END, date DESC;
+SELECT status, level, title, mitigation FROM risks ORDER BY
+  CASE level WHEN 'high' THEN 0 WHEN 'mid' THEN 1 ELSE 2 END;
+```
 
 ### Workflow S1 — 기회 발굴 (Opportunity mining)
 
@@ -165,8 +185,15 @@ Always end with an honesty footer: what the data supports vs. what is speculatio
 
 *Trigger: "이 결정하면 다들 어떻게 반응할까?"*
 
-For a proposed decision, simulate each key person's likely reaction **from their
-models** (not from stereotypes): 예상 입장 + 근거 모델/인용 + 설득 포인트.
+For a proposed decision, per key person, output **exactly this 3-part set** — a
+single predicted stance is FORBIDDEN (users over-trust point predictions and act
+on them, e.g. preemptively routing around a predicted objection that never existed):
+
+1. **찬성 시나리오**: this person supports it IF … (근거 모델/인용)
+2. **반대 시나리오**: this person pushes back IF … (근거 모델/인용)
+3. **확인 질문 1개**: the single question to ask them that reveals which scenario
+   is real — this is the actual deliverable. 시뮬레이션은 확인을 대체하지 못한다.
+
 Label clearly: **시뮬레이션 — 실제 반응은 다를 수 있음.** Deliverable optional.
 
 ### Strategy-mode honesty rules
