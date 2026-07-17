@@ -77,6 +77,8 @@ def main():
     # --- classify people ---
     for p in d.get("people", []):
         p["type"] = "person" if is_person(p["name"]) else "org"
+        if p["type"] == "org" and p.get("evidence") == "high":
+            p["evidence"] = "mid"   # org profile = third-party inference, cap at mid
     persons = {p["name"] for p in d["people"] if p["type"] == "person"}
     orgs = {p["name"] for p in d["people"] if p["type"] == "org"}
 

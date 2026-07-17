@@ -187,6 +187,10 @@ def main():
             warns.append(f"timeline[{t.get('date')}]: meeting '{t['meeting']}' not in meetings[]")
 
     # --- honesty ---
+    for p in people:
+        if (p.get("type") == "org") and p.get("evidence") == "high":
+            errors.append(f"people[{p.get('name')}]: org-type entity with evidence=high — "
+                          "an org profile is third-party inference, capped at 'mid'")
     for m in models:
         i = m.get("id")
         holders = m.get("holders", m.get("people", []))

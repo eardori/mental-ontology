@@ -266,6 +266,9 @@ def test_validate_catches_errors(tmp):
     shutil.copytree(root, bad)
     op = bad / "_ontology" / "objects.json"
     d = json.loads(op.read_text(encoding="utf-8"))
+    for p in d["people"]:
+        if p["name"] == "넥스트라":
+            p["evidence"] = "high"             # org entity with high evidence → error
     for m in d["models"]:
         if m["id"] == "competitor-watch":
             m["holders"] = ["넥스트라"]        # org-only holder …
@@ -278,6 +281,7 @@ def test_validate_catches_errors(tmp):
     rc, out = run("validate.py", bad)
     check("validate exits 1 on corrupted ontology", rc == 1, out)
     check("org-evidence cap violation reported", "capped at 'mid'" in out, out)
+    check("org ENTITY evidence cap reported", "org-type entity with evidence=high" in out, out)
     check("broken related id reported", "no-such-model" in out, out)
     check("holder-list inconsistency reported", "not one of its holders" in out, out)
     check("hallucinated quote flagged as NOT grounded", "NOT grounded" in out, out)
