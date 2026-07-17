@@ -23,11 +23,29 @@ rebuild after every ontology update). Query it with the `sqlite3` CLI or python 
 
 ### SQL recipes
 
+**Names first**: transcripts label speakers many ways (`정우진`, `James`, `James(정우진)`).
+The DB resolves labels to canonical names via `person_aliases` (built from
+`_meta/speakers.json`); `utterances.speaker` is already canonical where resolvable.
+Start person questions with A0 so you query the right canonical name.
+
+**Holder vs about**: `model_people` = who *holds* a belief. `model_about` = whom the
+belief is *about*. "메가스테이에 대한 모델" (A2) are **our people's beliefs about that competitor** —
+never present them as the competitor's own views.
+
 ```sql
--- A. Person profile (사람 한 명의 전체 프레임)
+-- A0. Resolve any label/alias to the canonical person
+SELECT DISTINCT canonical FROM person_aliases WHERE alias LIKE '%james%';
+
+-- A. Person profile (사람 한 명의 전체 프레임 — 그 사람이 '보유한' 모델)
 SELECT m.category, m.title, m.evidence, m.count, m.quote
 FROM models m JOIN model_people mp ON mp.model_id = m.id
-WHERE mp.person LIKE '%Kevin%' ORDER BY m.count DESC;
+WHERE mp.person = 'James(정우진)' ORDER BY m.count DESC;
+
+-- A2. What do our people believe ABOUT an entity (경쟁사/파트너/고객)
+SELECT m.title, m.evidence, m.quote,
+       (SELECT GROUP_CONCAT(person, ', ') FROM model_people WHERE model_id=m.id) AS held_by
+FROM models m JOIN model_about a ON a.model_id = m.id
+WHERE a.entity LIKE '%메가스테이%';
 
 -- B. Tension map (조직의 대립 지점)
 SELECT from_person, to_person, topic, note FROM relations WHERE type='tension';
@@ -42,9 +60,10 @@ ORDER BY date DESC LIMIT 20;
 -- D. Thinking evolution (시간축)
 SELECT date, change FROM timeline ORDER BY date;
 
--- E. Who talks about X the most (주제별 오너십 힌트)
+-- E. Who talks about X the most (주제별 오너십 힌트 — speaker는 canonical)
 SELECT speaker, COUNT(*) n FROM utterances_fts WHERE utterances_fts MATCH '정산'
 GROUP BY speaker ORDER BY n DESC;
+-- caveat: 빈 speaker(미부여 발화)가 상위에 오면 그 회의들은 화자 미상 — 단정하지 말 것
 
 -- F. Meeting lookup then deep-read
 SELECT rowid, date, title, category, path FROM meetings
@@ -55,7 +74,8 @@ WHERE date BETWEEN '2026-06-01' AND '2026-07-31' AND category='내부-전략';
 
 | User asks (예) | Do |
 |---|---|
-| "X는 어떤 사람이야 / 어떻게 생각해?" | Recipe A + relations where X appears → profile card: 핵심 프레임 3–5개(인용 포함) + 근거 등급 + 최근 변화(evolution/timeline) |
+| "X는 어떤 사람이야 / 어떻게 생각해?" | A0로 canonical 확정 → Recipe A + relations where X appears → profile card: 핵심 프레임 3–5개(인용 포함) + 근거 등급 + 최근 변화(evolution/timeline) |
+| "경쟁사/파트너 Y를 우리는 어떻게 보고 있어?" | Recipe A2 → **누구의 믿음인지 holder를 명시**해 답한다 ("정우진은 Y를 ~로 본다") — Y 자신의 견해처럼 말하지 않기 |
 | "X에게 이 일 맡겨도 될까?" | Recipe A for X → match the task against X's models (fit/anti-fit) → tensions involving X → verdict: 맡기면 잘 될 조건 / 부딪힐 지점 / 보완 파트너 |
 | "X랑 미팅인데 뭘 준비하지?" | X's profile + last meetings with X (Recipe F + read) → 1-page brief: 상대 프레임 · 지난 논의 미결점 · 반응 예상 · 여는 질문 3개 |
 | "우리 조직 어디가 안 맞아?" | Recipe B + timeline 최근 국면 → tension별: 누가·무엇·언제부터·현재 상태 · 방치 리스크 |

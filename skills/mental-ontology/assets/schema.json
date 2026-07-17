@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Mental Model Ontology — objects.json",
+  "title": "Mental Model Ontology — objects.json (schema v2)",
   "type": "object",
   "required": ["meta", "people", "models"],
   "properties": {
@@ -8,13 +8,15 @@
       "type": "object",
       "required": ["title", "org"],
       "properties": {
+        "schema_version": { "type": "integer", "const": 2, "description": "v2: people.type + models.holders/about + meeting provenance. 없으면 v1 레거시 — migrate_objects.py 로 승격" },
         "title": { "type": "string" },
         "org": { "type": "string" },
         "subtitle": { "type": "string" },
         "date_range": { "type": "string" },
         "sensitivity": { "type": "string", "enum": ["L1", "L2", "L3"] },
         "confidence_note": { "type": "string" },
-        "sources": { "type": "array", "items": { "type": "string" } }
+        "sources": { "type": "array", "items": { "type": "string" } },
+        "processed_source_ids": { "type": "array", "items": { "type": "string" }, "description": "온톨로지에 반영된 트랜스크립트의 source_id 전체 — 증분 병합의 기준" }
       }
     },
     "meetings": {
@@ -24,22 +26,28 @@
         "required": ["id", "date"],
         "properties": {
           "id": { "type": "string" },
-          "date": { "type": "string" },
-          "title": { "type": "string" }
+          "date": { "type": "string", "description": "YYYY-MM-DD" },
+          "title": { "type": "string" },
+          "source_id": { "type": "string", "description": "프로비넌스: 트랜스크립트 frontmatter의 source_id (신규 분석은 필수)" },
+          "path": { "type": "string", "description": "프로비넌스: 코퍼스 기준 상대 경로 (신규 분석은 필수)" },
+          "batch": { "type": "string", "description": "분석 배치 라벨 (선택)" }
         }
       }
     },
     "people": {
       "type": "array",
+      "description": "인물 + 대상 엔티티(파트너/경쟁사/고객 조직). v2에서 type 필수.",
       "items": {
         "type": "object",
-        "required": ["name", "summary", "evidence", "models"],
+        "required": ["name", "type", "summary", "evidence", "models"],
         "properties": {
-          "name": { "type": "string" },
+          "name": { "type": "string", "description": "canonical 이름 — person은 _meta/speakers.json 의 name과 일치해야 DB 조인이 성립" },
+          "type": { "type": "string", "enum": ["person", "org"], "description": "person=발화 가능한 실제 인물, org=믿음의 '대상'이 되는 조직·외부 엔티티" },
           "role": { "type": "string" },
+          "org": { "type": "string", "description": "소속 (person일 때)" },
           "summary": { "type": "string" },
           "evidence": { "type": "string", "enum": ["high", "mid", "low"] },
-          "models": { "type": "array", "items": { "type": "string" }, "description": "각 항목은 models[].id 에 존재해야 함(참조 무결성)" },
+          "models": { "type": "array", "items": { "type": "string" }, "description": "이 인물이 '보유(hold)'한 모델 id — 각 id는 models[].id 에 존재하고, 그 모델의 holders 에 이 인물이 포함돼야 함. org는 보통 빈 배열(그 조직에 '대한' 모델은 models[].about 으로 조회)" },
           "evolution": {
             "type": "array",
             "items": {
@@ -55,16 +63,20 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "category", "title", "evidence", "people"],
+        "required": ["id", "category", "title", "evidence", "holders"],
         "properties": {
-          "id": { "type": "string", "description": "kebab-case 고유 id" },
-          "category": { "type": "string", "description": "전략|제품|재무|기술|조직|리스크|기타" },
+          "id": { "type": "string", "description": "kebab-case 고유 id — 재실행 간 안정적으로 유지(증분 병합 키)" },
+          "category": { "type": "string", "description": "전략|리더십|조직|제품|재무|기술|영업|투자|리스크|기타" },
           "title": { "type": "string", "description": "한 문장으로 된 믿음/판단 기준" },
           "desc": { "type": "string" },
-          "evidence": { "type": "string", "enum": ["high", "mid", "low"] },
-          "people": { "type": "array", "items": { "type": "string" } },
-          "quote": { "type": "string", "description": "실제 발언 한 줄(있으면)" },
-          "first_seen": { "type": "string", "description": "meetings[].id 참조" },
+          "evidence": { "type": "string", "enum": ["high", "mid", "low"], "description": "holders 가 전원 org 인 모델(제3자 추정)은 mid 가 상한" },
+          "holders": { "type": "array", "items": { "type": "string" }, "minItems": 1, "description": "이 믿음을 '가진' 주체 — people[].name 참조. 'A가 B에 대해 한 말'의 holder는 A다(B가 아님!)" },
+          "about": { "type": "array", "items": { "type": "string" }, "description": "이 믿음의 '대상' 엔티티 — people[].name 참조 (예: 경쟁사, 파트너)" },
+          "people": { "type": "array", "items": { "type": "string" }, "description": "DEPRECATED (v1) — holders 로 대체됨. 읽기 시 holders 로 취급" },
+          "quote": { "type": "string", "description": "실제 발언 한 줄(있으면) — high 등급의 근거" },
+          "count": { "type": "integer", "description": "등장한 회의 수" },
+          "first_seen": { "type": "string", "description": "YYYY-MM-DD" },
+          "last_seen": { "type": "string", "description": "YYYY-MM-DD" },
           "related": { "type": "array", "items": { "type": "string" } }
         }
       }
@@ -75,8 +87,8 @@
         "type": "object",
         "required": ["from", "to", "type"],
         "properties": {
-          "from": { "type": "string" },
-          "to": { "type": "string" },
+          "from": { "type": "string", "description": "people[].name 참조 (person 또는 org)" },
+          "to": { "type": "string", "description": "people[].name 참조" },
           "type": { "type": "string", "enum": ["agree", "tension", "builds-on"] },
           "topic": { "type": "string" },
           "note": { "type": "string" }
@@ -114,7 +126,7 @@
         "required": ["date", "change"],
         "properties": {
           "date": { "type": "string" },
-          "meeting": { "type": "string" },
+          "meeting": { "type": "string", "description": "meetings[].id 참조" },
           "change": { "type": "string" }
         }
       }

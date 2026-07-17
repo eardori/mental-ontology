@@ -89,6 +89,7 @@ Goal: replace "Speaker 1/2" and misattributed labels with real names, learning o
    - Otherwise → ask.
 4. Ask with the AskUserQuestion tool, one compact question per unknown speaker (batch up to 4 per call). Options = top candidates with a one-line quote sample of that speaker; the user can always pick "Other" and type a name. Example question: "Speaker 2는 누구인가요? (샘플: '...정산 주기를 당기면...')".
 5. Update `speakers.json` with confirmations (add aliases, meeting dates, refine traits). This makes future runs progressively quieter — that's the point.
+   - **Aliases are load-bearing**: `build_db.py` joins transcripts to the ontology through them. Record every raw label a person appears under (한글 이름, 영어 이름, 별명 — e.g. `James(정우진)` ← `정우진`, `James`, `제임스`). `Name(Other)` style names get both halves matched automatically, but anything else must be listed.
 6. If the user says "몰라도 돼 / skip", keep generic labels and move on. Never block the pipeline on attribution.
 
 ## Stage 4 — Clean & save markdown
@@ -131,6 +132,7 @@ Follow the full extraction spec in `assets/EXTRACTION.md`. Summary:
 
 1. **Scope**: ask the user once — whole corpus vs. a period/category vs. one person deep-dive. Exclude `개인-통화` and junk by default.
 2. **Extract per meeting** (parallel subagents on cheap model for large corpora): each person's mental models — *reusable beliefs/decision criteria*, not one-off opinions — with `evidence: high|mid|low` graded honestly (verbatim quote → high; role-based inference → mid; presence only → low), plus counterparts and tensions.
+   - **Attribution discipline** (EXTRACTION.md rule 0): a model's `holders` = who *holds* the belief; `about` = whom it *concerns*. "정우진이 경쟁사 메가스테이에 대해 한 말"의 holder는 정우진이다. Org-held models (제3자 추정) cap at `mid`. Person names must be `_meta/speakers.json` canonical names — that's what joins the ontology to transcripts in the DB.
 3. **Synthesize** (stronger model): cluster instances into canonical models; build people cards, relations (`agree|tension|builds-on` — tensions are the most valuable signal), timeline of thinking evolution, strategy bets ↔ risks.
 4. **Mask sensitive data**: no equity %, amounts, valuations, health/legal personal matters in output — generalize.
 5. **Ask how to visualize** (AskUserQuestion, once per analysis run — skip if the user already said):
@@ -139,11 +141,12 @@ Follow the full extraction spec in `assets/EXTRACTION.md`. Summary:
    - **인물별 프로필 카드 (md)** — one file per person
    - **전부** (default recommendation)
 6. **Generate per choice** into `<corpus>/_ontology/`:
-   - Always: `objects.json` per `assets/schema.json` (validate: every `people[].models` id exists in `models[].id`) — this is the data of record regardless of visualization choice.
+   - Always: `objects.json` per `assets/schema.json` (schema v2: `meta.schema_version: 2`, `people[].type`, `models[].holders/about`, `meetings[].source_id+path`, `meta.processed_source_ids`) — this is the data of record regardless of visualization choice. Working/intermediate files (per-meeting extracts, aggregates) go in `_ontology/_work/<date-label>/`, never loose in `_ontology/`.
+   - **Then validate — mandatory**: `python3 <skill_dir>/scripts/validate.py <corpus_path>`. Fix every ERROR before proceeding; surface WARNs to the user. (Legacy v1 objects.json → run `scripts/migrate_objects.py` first.)
    - HTML → `index.html`: copy `assets/viewer.html`, then **embed** objects.json by replacing the content of `<script id="sample-data" type="application/json">…</script>` and hiding the sample banner (`class="banner"` → `class="banner hidden"`) so it renders on double-click without a server.
    - md report → `REPORT.md`: executive summary (3–5 bullets: the person's/org's core thinking axes), per-person one-liners with evidence grades, notable tensions, timeline.
    - Profile cards → `profiles/PROFILE-<이름>.md`, one per person: frontmatter (name/role/evidence/updated) → 핵심 관점 요약 → 멘탈모델 목록(카테고리·근거 등급·대표 인용) → 관계(합의/대립 상대와 주제) → 사고 변화(evolution) → 이 사람과 일할 때/설득할 때 팁 2–3줄. These cards are the unit people actually reuse — before a 1:1, before delegation, before a pitch.
-7. **Incremental**: if `_ontology/objects.json` exists, merge — keep canonical model ids stable, add new evidence/quotes, append timeline entries, upgrade `evidence` when verbatim support appears. Regenerate whichever visualizations the user chose (profiles: only changed people).
+7. **Incremental**: if `_ontology/objects.json` exists, merge — process only transcripts whose `source_id` is NOT in `meta.processed_source_ids`; keep canonical model ids stable, add new evidence/quotes, append timeline entries, upgrade `evidence` when verbatim support appears; append the new source_ids to `processed_source_ids`. Regenerate whichever visualizations the user chose (profiles: only changed people).
 8. Tell the user what was created and where; adding more meetings enriches the timeline. Then offer Stage 7–9 ("이제 데이터에 질문하거나 전략을 뽑을 수 있습니다").
 
 ## Stage 7 — Build the database
@@ -154,10 +157,18 @@ Run after every ontology update (and offer it to users still on viewer-only):
 python3 <skill_dir>/scripts/build_db.py <corpus_path>
 ```
 
-→ `<corpus>/_ontology/ontology.db` (SQLite, rebuilt idempotently): `people`, `models`
-(+`model_people`/`model_related`), `relations`, `timeline`, `bets`, `risks`, `meetings`,
-`utterances`, and `utterances_fts` (FTS5 full-text search over every utterance; check
-`meta.fts5` — if `no`, fall back to `LIKE`). No external dependencies.
+→ `<corpus>/_ontology/ontology.db` (SQLite, rebuilt idempotently): `people` (with
+`type` person/org), `models` (+`model_people` = holders, `model_about` = subjects,
+`model_related`), `person_aliases` (speaker-label → canonical-name map from
+`_meta/speakers.json`), `relations`, `timeline`, `bets`, `risks`, `meetings`,
+`utterances` (`speaker` = canonical where resolvable, `speaker_raw` = original label),
+and `utterances_fts` (FTS5 full-text search; check `meta.fts5` — if `no`, fall back
+to `LIKE`). No external dependencies.
+
+**Read the build report.** It prints speaker-attribution coverage and WARNs about
+zero-utterance meetings, unparsed lines, and alias conflicts. WARNs mean data is
+missing from query mode — fix the cause (usually Stage 3 aliases) or tell the user
+what's not covered. Then run `validate.py` for the full integrity/coverage check.
 
 ## Stage 8 — Query mode (Q&A over the data)
 
@@ -210,9 +221,12 @@ quotes, one per line — so the user can literally copy one and send it.
 
 ## Reference files
 
-- `assets/EXTRACTION.md` — full ontology extraction spec (model definition, grading, schema details)
-- `assets/schema.json` — objects.json JSON Schema
+- `assets/EXTRACTION.md` — full ontology extraction spec (model definition, holder/about attribution, grading, schema details)
+- `assets/schema.json` — objects.json JSON Schema (v2)
 - `assets/viewer.html` — self-contained viewer (file-open/drag-drop or embedded data)
 - `assets/corpus-structure.md` — corpus folder layout
 - `scripts/whisper_transcribe.py` — download + local Whisper transcription
 - `scripts/build_index.py` — catalog + INDEX generator
+- `scripts/build_db.py` — SQLite DB builder (aliases, FTS, coverage report)
+- `scripts/validate.py` — ontology + DB integrity/honesty/coverage checks (run after Stage 6/7)
+- `scripts/migrate_objects.py` — one-time schema v1 → v2 migration for existing corpora

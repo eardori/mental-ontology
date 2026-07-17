@@ -92,5 +92,19 @@ def main():
     print(f"OK: {len(rows)} entries → _index/catalog.json + _index/INDEX.md")
     print("categories:", dict(bycat))
 
+    sid_paths = defaultdict(list)
+    for r in rows:
+        if r["source_id"]:
+            # split recordings (_part1/_part2) legitimately share a source_id
+            sid_paths[(r["source_id"], r["part"])].append(r["path"])
+    dups = {k: v for k, v in sid_paths.items() if len(v) > 1}
+    if dups:
+        print(f"WARN: {len(dups)} source_ids appear in multiple files (same recording "
+              "saved twice — keep one, delete the other):")
+        for (sid, _part), paths in list(dups.items())[:8]:
+            print(f"    {sid}: " + " | ".join(paths))
+        if len(dups) > 8:
+            print(f"    … and {len(dups) - 8} more")
+
 if __name__ == "__main__":
     main()

@@ -12,6 +12,22 @@ market before perfecting"). NOT a one-off opinion, NOT a fact they mentioned.
 
 ## Extraction rules
 
+### 0) Holder vs subject — the attribution rule (get this right first)
+
+Every model has **holders** (who *holds* the belief) and optionally **about**
+(whom/what the belief *concerns*). These are different axes and must never mix:
+
+- 정우진 says "메가스테이가 계속 견제하면 제휴를 접는 것도 옵션이다"
+  → holder: **정우진**, about: **메가스테이**. This is 정우진's model — NOT 메가스테이's.
+- A model belongs to an **org** (`type: org` entity) as holder ONLY if the org's own
+  representative said it in the meeting, or a written source from the org states it.
+  What "we think X company thinks" is a **third-party inference: evidence `mid` at
+  best**, never `high` — no matter how good the quote is (the quote grounds the
+  *speaker's* belief, not the org's).
+- Entity types: `people[].type` = `person` (real attendees/speakers; must match a
+  `_meta/speakers.json` profile name) or `org` (partners, competitors, customers,
+  institutions — entities beliefs are *about*).
+
 ### 1) Per-person models
 - For each person: a 2–3 sentence **core-perspective summary** + list of linked models.
 - Attach a **real quote** (one line from the transcript) as grounding whenever possible.
@@ -50,31 +66,37 @@ When processing many meetings: extract per-meeting instances first (cheap parall
 agents), then **cluster instances into canonical models** (one strong pass):
 - merge near-duplicate titles into one canonical model with `count` (how many meetings
   it appeared in), `first_seen`/`last_seen` dates, and the single most representative quote;
-- repeated appearance across meetings upgrades `evidence` to `high`;
+- repeated appearance across meetings upgrades `evidence` to `high` (person-held
+  models only — org-held models stay capped at `mid`, see rule 0);
 - normalize categories to: 전략/리더십/조직/제품/재무/기술/영업/투자/리스크 (or the
   closest set fitting the org);
 - keep canonical model **ids stable across re-runs** so incremental merges work.
 
-## Output schema — objects.json
+## Output schema — objects.json (schema v2)
 
 See `schema.json` for the JSON Schema. Shape:
 
 ```json
 {
   "meta": {
+    "schema_version": 2,
     "title": "<org> 멘탈모델 온톨로지", "org": "", "subtitle": "",
     "date_range": "YYYY-MM-DD ~ YYYY-MM-DD", "sensitivity": "L2",
-    "confidence_note": "honest note on grading & quote fidelity", "sources": []
+    "confidence_note": "honest note on grading & quote fidelity", "sources": [],
+    "processed_source_ids": ["<every transcript source_id merged into this ontology>"]
   },
-  "meetings": [{ "id": "m1", "date": "YYYY-MM-DD", "title": "" }],
+  "meetings": [{ "id": "m1", "date": "YYYY-MM-DD", "title": "",
+                 "source_id": "<from transcript frontmatter>", "path": "transcripts/..." }],
   "people": [{
-    "name": "", "role": "", "summary": "", "evidence": "high|mid|low",
-    "models": ["model-id"], "evolution": [{ "date": "", "note": "" }]
+    "name": "", "type": "person|org", "role": "", "org": "",
+    "summary": "", "evidence": "high|mid|low",
+    "models": ["model-id-they-HOLD"], "evolution": [{ "date": "", "note": "" }]
   }],
   "models": [{
     "id": "kebab-case", "category": "", "title": "one-sentence belief", "desc": "",
-    "evidence": "high|mid|low", "people": [""], "quote": "", "count": 1,
-    "first_seen": "", "last_seen": "", "related": ["other-model-id"]
+    "evidence": "high|mid|low", "holders": ["who holds it"], "about": ["whom it concerns"],
+    "quote": "", "count": 1, "first_seen": "YYYY-MM-DD", "last_seen": "YYYY-MM-DD",
+    "related": ["other-model-id"]
   }],
   "relations": [{ "from": "", "to": "", "type": "agree|tension|builds-on", "topic": "", "note": "" }],
   "bets": [{ "tag": "", "title": "", "desc": "" }],
@@ -83,8 +105,20 @@ See `schema.json` for the JSON Schema. Shape:
 }
 ```
 
-**Referential integrity** (validate before finishing): every id in `people[].models`
-exists in `models[].id`; every name in `relations[].from/to` exists in `people[].name`.
+**Provenance is mandatory for new analysis**: every `meetings[]` entry records the
+transcript's `source_id` + `path`, and `meta.processed_source_ids` lists every
+transcript merged so far — this is what makes incremental merges decidable.
+
+**Validation is a script, not a promise** — before finishing Stage 6, run:
+
+```bash
+python3 <skill_dir>/scripts/validate.py <corpus_path>
+```
+
+It enforces: referential integrity (holders/about/relations ↔ people, people.models ↔
+models.id + the person really is a holder), the org-evidence cap, provenance, and —
+once the DB exists — join coverage between ontology names and transcript speakers.
+Fix every ERROR; report WARNs to the user honestly.
 
 ## Report (REPORT.md)
 

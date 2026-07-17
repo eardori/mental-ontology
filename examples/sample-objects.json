@@ -1,5 +1,6 @@
 {
   "meta": {
+    "schema_version": 2,
     "title": "Acme 리더 멘탈모델 온톨로지 (샘플)",
     "org": "Acme",
     "subtitle": "가상의 구독 커머스 스타트업 Acme의 5~6월 전략·가격 회의 2건에서 리더들의 사고방식을 재구성한 예시 데이터.",
@@ -9,16 +10,21 @@
     "sources": [
       "2026-05-20 Acme 전략 회의 (녹취)",
       "2026-06-24 Acme 가격정책 회의 (녹취)"
-    ]
+    ],
+    "processed_source_ids": ["acme-rec-0520", "acme-rec-0624"]
   },
   "meetings": [
-    { "id": "m1", "date": "2026-05-20", "title": "전략 회의 — 다음 분기 방향" },
-    { "id": "m2", "date": "2026-06-24", "title": "가격정책 회의 — 구독료 인상 여부" }
+    { "id": "m1", "date": "2026-05-20", "title": "전략 회의 — 다음 분기 방향",
+      "source_id": "acme-rec-0520", "path": "transcripts/2026/2026-05/2026-05-20_전략회의-다음분기.md" },
+    { "id": "m2", "date": "2026-06-24", "title": "가격정책 회의 — 구독료 인상 여부",
+      "source_id": "acme-rec-0624", "path": "transcripts/2026/2026-06/2026-06-24_가격정책-인상여부.md" }
   ],
   "people": [
     {
       "name": "정우진",
+      "type": "person",
       "role": "CEO",
+      "org": "Acme",
       "summary": "시장에 먼저 신호를 던지고 반응으로 배우려는 속도 지향 창업자. 완성도보다 학습 속도를 우선하며, 팀이 스스로 답을 찾게 질문으로 이끈다.",
       "evidence": "high",
       "models": ["speed-over-polish", "declare-to-learn", "question-led"],
@@ -29,7 +35,9 @@
     },
     {
       "name": "이서연",
+      "type": "person",
       "role": "CPO",
+      "org": "Acme",
       "summary": "제품 완성도를 신뢰의 전제로 보는 프로덕트 리더. 차별 기능 없이 가격을 올리면 신뢰가 깨진다고 보고, 사용자 가치가 선행돼야 한다고 주장한다.",
       "evidence": "high",
       "models": ["value-before-price", "trust-is-fragile"],
@@ -39,24 +47,38 @@
     },
     {
       "name": "박도현",
+      "type": "person",
       "role": "CFO",
+      "org": "Acme",
       "summary": "현금흐름과 런웨이를 판단의 축으로 두는 보수적 재무 리더. 성장도 현금 건전성 안에서만 유효하다고 본다.",
       "evidence": "mid",
-      "models": ["runway-first", "growth-within-cash"]
+      "models": ["runway-first", "growth-within-cash", "investor-discipline-lens"]
     },
     {
       "name": "김하늘",
+      "type": "person",
       "role": "영업총괄",
+      "org": "Acme",
       "summary": "기존 고객 이탈을 최우선 리스크로 보는 신중론자. 채널·리텐션 관점에서 급격한 변화에 브레이크를 건다.",
       "evidence": "mid",
       "models": ["churn-first", "retention-moat"]
     },
     {
       "name": "최민석",
+      "type": "person",
       "role": "CTO",
+      "org": "Acme",
       "summary": "실험 인프라로 의사결정을 대체하려는 기술 리더. '논쟁 대신 A/B로 확인하자'는 데이터 우선 관점.",
       "evidence": "mid",
       "models": ["experiment-over-debate"]
+    },
+    {
+      "name": "그로우캐피탈",
+      "type": "org",
+      "role": "시리즈B 리드 투자사",
+      "summary": "Acme의 리드 투자사. 리더들의 발언에서 '성장률만큼 소진 규율을 본다'는 상(像)으로 등장 — 투자사 자신의 발언이 아니므로 추정(mid) 이상으로 올리지 않는다.",
+      "evidence": "mid",
+      "models": []
     }
   ],
   "models": [
@@ -66,9 +88,11 @@
       "title": "완성도보다 학습 속도가 먼저다",
       "desc": "완벽히 다듬기보다 빠르게 내보내 시장 반응으로 배운다. 속도가 곧 정보다.",
       "evidence": "high",
-      "people": ["정우진"],
+      "holders": ["정우진"],
       "quote": "다 갖추고 내면 이미 늦어요. 일단 던지고 반응 보고 고치는 게 정보가 제일 빨라요.",
-      "first_seen": "m1",
+      "count": 2,
+      "first_seen": "2026-05-20",
+      "last_seen": "2026-06-24",
       "related": ["declare-to-learn"]
     },
     {
@@ -77,9 +101,10 @@
       "title": "선언이 곧 학습 장치다",
       "desc": "가격 인상을 먼저 공표해 내부 리소스를 모으고 고객 반응을 조기에 확인한다.",
       "evidence": "high",
-      "people": ["정우진"],
+      "holders": ["정우진"],
       "quote": "인상한다고 먼저 말해두면 팀이 거기에 맞춰 움직이고, 나갈 사람은 지금 갈려요.",
-      "first_seen": "m1",
+      "count": 1,
+      "first_seen": "2026-05-20",
       "related": ["speed-over-polish", "value-before-price"]
     },
     {
@@ -88,9 +113,10 @@
       "title": "답을 주지 않고 질문으로 이끈다",
       "desc": "결론을 박지 않고 질문을 던져 리더들이 스스로 패턴을 찾게 한다.",
       "evidence": "high",
-      "people": ["정우진"],
+      "holders": ["정우진"],
       "quote": "제가 정답을 말하면 다들 거기서 멈춰요. 그래서 '그럼 이건 어떻게 될까요' 하고 되묻죠.",
-      "first_seen": "m1"
+      "count": 1,
+      "first_seen": "2026-05-20"
     },
     {
       "id": "value-before-price",
@@ -98,9 +124,11 @@
       "title": "가치가 가격보다 먼저다",
       "desc": "차별 기능·사용자 가치가 선행되지 않으면 인상은 신뢰를 깬다. 번들 기능 출시 후 과금해야 설득력이 있다.",
       "evidence": "high",
-      "people": ["이서연"],
+      "holders": ["이서연"],
       "quote": "지금 올리면 '뭐가 좋아졌는데?' 소리 들어요. 줄 걸 먼저 주고 받아야죠.",
-      "first_seen": "m1",
+      "count": 2,
+      "first_seen": "2026-05-20",
+      "last_seen": "2026-06-24",
       "related": ["trust-is-fragile", "declare-to-learn"]
     },
     {
@@ -109,8 +137,9 @@
       "title": "신뢰는 깨지기 쉽다",
       "desc": "한 번 잃은 구독자 신뢰는 회복이 비싸다. 변화는 신뢰 예산 안에서 집행한다.",
       "evidence": "mid",
-      "people": ["이서연"],
-      "first_seen": "m1",
+      "holders": ["이서연"],
+      "count": 1,
+      "first_seen": "2026-05-20",
       "related": ["churn-first"]
     },
     {
@@ -119,9 +148,10 @@
       "title": "런웨이가 모든 결정의 상한이다",
       "desc": "현금 소진 속도가 전략의 경계. 성장도 런웨이 안에서만 유효하다.",
       "evidence": "mid",
-      "people": ["박도현"],
+      "holders": ["박도현"],
       "quote": "재밌는 실험 다 좋은데, 우리 통장이 14개월이에요. 거기서 시작해요.",
-      "first_seen": "m1",
+      "count": 1,
+      "first_seen": "2026-05-20",
       "related": ["growth-within-cash"]
     },
     {
@@ -130,8 +160,22 @@
       "title": "현금 건전성 안에서만 성장한다",
       "desc": "성장률보다 현금 회수 주기를 먼저 본다. 인상은 현금흐름 개선 카드로도 유효.",
       "evidence": "mid",
-      "people": ["박도현"],
-      "first_seen": "m2",
+      "holders": ["박도현"],
+      "count": 1,
+      "first_seen": "2026-06-24",
+      "related": ["runway-first"]
+    },
+    {
+      "id": "investor-discipline-lens",
+      "category": "투자",
+      "title": "투자자는 성장률만큼 소진 규율을 본다",
+      "desc": "다음 라운드 관점에서 번레이트 규율이 성장 스토리의 신뢰도를 좌우한다고 본다. 그로우캐피탈에 '대한' 박도현의 믿음 — 투자사 자신의 발언이 아니므로 mid.",
+      "evidence": "mid",
+      "holders": ["박도현"],
+      "about": ["그로우캐피탈"],
+      "quote": "그로우 쪽은 미팅 열면 우리 소진 곡선부터 물어볼 거예요.",
+      "count": 1,
+      "first_seen": "2026-06-24",
       "related": ["runway-first"]
     },
     {
@@ -140,9 +184,10 @@
       "title": "이탈을 최우선으로 본다",
       "desc": "급격한 가격 변화는 기존 고객 이탈로 직결된다. 영향 최소 범위에서 단계적으로.",
       "evidence": "mid",
-      "people": ["김하늘"],
+      "holders": ["김하늘"],
       "quote": "숫자로만 보면 인상이 맞는데, 현장은 '배신감'이라고 말해요. 그게 이탈이에요.",
-      "first_seen": "m2",
+      "count": 1,
+      "first_seen": "2026-06-24",
       "related": ["retention-moat", "trust-is-fragile"]
     },
     {
@@ -151,8 +196,9 @@
       "title": "리텐션이 진짜 해자다",
       "desc": "신규 획득보다 재구독율이 방어벽. 가격은 리텐션을 해치지 않는 선에서 조정.",
       "evidence": "mid",
-      "people": ["김하늘"],
-      "first_seen": "m2"
+      "holders": ["김하늘"],
+      "count": 1,
+      "first_seen": "2026-06-24"
     },
     {
       "id": "experiment-over-debate",
@@ -160,9 +206,10 @@
       "title": "논쟁 대신 실험으로 결정한다",
       "desc": "의견 충돌은 A/B 테스트로 푼다. 인상폭도 코호트 실험으로 검증 후 확정.",
       "evidence": "mid",
-      "people": ["최민석"],
+      "holders": ["최민석"],
       "quote": "이거 회의로 30분 싸울 게 아니라, 두 그룹 나눠서 2주면 답 나와요.",
-      "first_seen": "m2"
+      "count": 1,
+      "first_seen": "2026-06-24"
     }
   ],
   "relations": [

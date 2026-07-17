@@ -83,6 +83,11 @@
   .quote{border-left:2px solid var(--hi);padding:7px 0 7px 11px;margin:0 0 12px;color:var(--tx);font-size:12px;font-style:italic;background:linear-gradient(90deg,rgba(52,209,127,.06),transparent)}
   .ptags{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto}
   .ptag{font-size:11.5px;font-weight:700;color:var(--tx);background:var(--card2);border:1px solid var(--line);padding:4px 9px;border-radius:8px}
+  .ptag.about{color:var(--amber);border-style:dashed}
+  .orgbadge{font-size:10.5px;font-weight:800;color:var(--amber);border:1px dashed var(--amber);padding:1px 7px;border-radius:999px;vertical-align:middle}
+  .orgcard{border-style:dashed}
+  .pcard .who{color:var(--tx3);font-weight:500;font-size:12px}
+  .pcard li.empty{color:var(--tx3);font-weight:500}
   /* relations graph */
   .relbox{display:grid;grid-template-columns:1.3fr 1fr;gap:24px;align-items:start}
   @media(max-width:820px){.relbox{grid-template-columns:1fr}}
@@ -191,7 +196,7 @@
 </div></footer>
 
 <script id="sample-data" type="application/json">
-{"meta":{"title":"Acme 리더 멘탈모델 온톨로지 (샘플)","org":"Acme","subtitle":"가상의 구독 커머스 스타트업 Acme의 5~6월 전략·가격 회의 2건에서 리더들의 사고방식을 재구성한 예시 데이터.","date_range":"2026-05-20 ~ 2026-06-24","sensitivity":"L2","confidence_note":"이 파일은 도구 시연용 가상 데이터입니다. 실제 인물·조직과 무관합니다.","sources":["2026-05-20 Acme 전략 회의 (녹취)","2026-06-24 Acme 가격정책 회의 (녹취)"]},"meetings":[{"id":"m1","date":"2026-05-20","title":"전략 회의 — 다음 분기 방향"},{"id":"m2","date":"2026-06-24","title":"가격정책 회의 — 구독료 인상 여부"}],"people":[{"name":"정우진","role":"CEO","summary":"시장에 먼저 신호를 던지고 반응으로 배우려는 속도 지향 창업자. 완성도보다 학습 속도를 우선하며, 팀이 스스로 답을 찾게 질문으로 이끈다.","evidence":"high","models":["speed-over-polish","declare-to-learn","question-led"],"evolution":[{"date":"2026-05-20","note":"무조건 빠른 인상 공표를 주장."},{"date":"2026-06-24","note":"이탈 데이터 보고 '단계적 인상'으로 톤 조정."}]},{"name":"이서연","role":"CPO","summary":"제품 완성도를 신뢰의 전제로 보는 프로덕트 리더. 차별 기능 없이 가격을 올리면 신뢰가 깨진다고 본다.","evidence":"high","models":["value-before-price","trust-is-fragile"],"evolution":[{"date":"2026-06-24","note":"'번들 기능 먼저 출시 후 인상' 절충안 제시."}]},{"name":"박도현","role":"CFO","summary":"현금흐름과 런웨이를 판단의 축으로 두는 보수적 재무 리더.","evidence":"mid","models":["runway-first","growth-within-cash"]},{"name":"김하늘","role":"영업총괄","summary":"기존 고객 이탈을 최우선 리스크로 보는 신중론자.","evidence":"mid","models":["churn-first","retention-moat"]},{"name":"최민석","role":"CTO","summary":"실험 인프라로 의사결정을 대체하려는 데이터 우선 기술 리더.","evidence":"mid","models":["experiment-over-debate"]}],"models":[{"id":"speed-over-polish","category":"전략","title":"완성도보다 학습 속도가 먼저다","desc":"완벽히 다듬기보다 빠르게 내보내 시장 반응으로 배운다.","evidence":"high","people":["정우진"],"quote":"다 갖추고 내면 이미 늦어요. 일단 던지고 반응 보는 게 정보가 제일 빨라요.","first_seen":"m1","related":["declare-to-learn"]},{"id":"declare-to-learn","category":"제품","title":"선언이 곧 학습 장치다","desc":"인상을 먼저 공표해 내부 리소스를 모으고 반응을 조기 확인.","evidence":"high","people":["정우진"],"quote":"인상한다고 먼저 말해두면 팀이 거기 맞춰 움직여요.","first_seen":"m1","related":["speed-over-polish","value-before-price"]},{"id":"question-led","category":"조직","title":"답을 주지 않고 질문으로 이끈다","desc":"결론을 박지 않고 질문으로 팀이 스스로 패턴을 찾게 한다.","evidence":"high","people":["정우진"],"quote":"제가 정답을 말하면 다들 거기서 멈춰요.","first_seen":"m1"},{"id":"value-before-price","category":"제품","title":"가치가 가격보다 먼저다","desc":"차별 기능이 선행돼야 인상이 신뢰를 얻는다.","evidence":"high","people":["이서연"],"quote":"줄 걸 먼저 주고 받아야죠.","first_seen":"m1","related":["trust-is-fragile","declare-to-learn"]},{"id":"trust-is-fragile","category":"제품","title":"신뢰는 깨지기 쉽다","desc":"한 번 잃은 구독자 신뢰는 회복이 비싸다.","evidence":"mid","people":["이서연"],"first_seen":"m1","related":["churn-first"]},{"id":"runway-first","category":"재무","title":"런웨이가 모든 결정의 상한이다","desc":"현금 소진 속도가 전략의 경계.","evidence":"mid","people":["박도현"],"quote":"우리 통장이 14개월이에요. 거기서 시작해요.","first_seen":"m1","related":["growth-within-cash"]},{"id":"growth-within-cash","category":"재무","title":"현금 건전성 안에서만 성장한다","desc":"성장률보다 현금 회수 주기를 먼저 본다.","evidence":"mid","people":["박도현"],"first_seen":"m2","related":["runway-first"]},{"id":"churn-first","category":"리스크","title":"이탈을 최우선으로 본다","desc":"급격한 가격 변화는 기존 고객 이탈로 직결된다.","evidence":"mid","people":["김하늘"],"quote":"현장은 '배신감'이라고 말해요. 그게 이탈이에요.","first_seen":"m2","related":["retention-moat","trust-is-fragile"]},{"id":"retention-moat","category":"전략","title":"리텐션이 진짜 해자다","desc":"신규 획득보다 재구독율이 방어벽.","evidence":"mid","people":["김하늘"],"first_seen":"m2"},{"id":"experiment-over-debate","category":"기술","title":"논쟁 대신 실험으로 결정한다","desc":"의견 충돌은 A/B 테스트로 푼다.","evidence":"mid","people":["최민석"],"quote":"회의로 30분 싸울 게 아니라 두 그룹 나눠서 2주면 답 나와요.","first_seen":"m2"}],"relations":[{"from":"정우진","to":"이서연","type":"tension","topic":"인상 타이밍","note":"CEO(선언 먼저) vs CPO(가치 먼저) — 핵심 대립."},{"from":"이서연","to":"김하늘","type":"agree","topic":"신뢰·이탈","note":"둘 다 급격한 변화의 신뢰 훼손을 경계."},{"from":"박도현","to":"정우진","type":"builds-on","topic":"인상=현금 카드","note":"CFO가 CEO 인상론에 현금흐름 논거를 더함."},{"from":"최민석","to":"정우진","type":"builds-on","topic":"실험으로 속도내기","note":"CTO가 CEO 속도론을 A/B 방법론으로 구체화."},{"from":"김하늘","to":"박도현","type":"tension","topic":"성장 vs 이탈","note":"재무는 인상 찬성, 영업은 이탈 우려."}],"bets":[{"tag":"monetize","title":"구독료 단계적 인상","desc":"번들 기능 출시와 묶어 2단계, 코호트 A/B로 폭 검증."},{"tag":"product","title":"번들 기능 선출시","desc":"인상 전 차별 기능을 먼저 제공."},{"tag":"platform","title":"가격 실험 인프라","desc":"코호트 분리·과금 실험 상시 운영."}],"risks":[{"level":"high","title":"인상 타이밍 미결","desc":"CEO vs CPO 이견 미결 — 정렬 지체 시 실행 혼선."},{"level":"high","title":"기존 구독자 이탈","desc":"차별 가치 없이 인상하면 리텐션 하락."},{"level":"mid","title":"런웨이 압박","desc":"현금 14개월 — 실험 기간이 길면 재무 여유 감소."}],"timeline":[{"date":"2026-05-20","meeting":"m1","change":"CEO 주도 '빠른 인상' 방향, CPO·영업 신중론 대립."},{"date":"2026-06-24","meeting":"m2","change":"'번들 선출시 + 단계적 인상 + A/B 검증'으로 절충안 수렴."}]}
+{"meta":{"schema_version":2,"title":"Acme 리더 멘탈모델 온톨로지 (샘플)","org":"Acme","subtitle":"가상의 구독 커머스 스타트업 Acme의 5~6월 전략·가격 회의 2건에서 리더들의 사고방식을 재구성한 예시 데이터.","date_range":"2026-05-20 ~ 2026-06-24","sensitivity":"L2","confidence_note":"이 파일은 도구 시연용 가상 데이터입니다. 실제 인물·조직과 무관합니다. 인용문도 예시입니다.","sources":["2026-05-20 Acme 전략 회의 (녹취)","2026-06-24 Acme 가격정책 회의 (녹취)"],"processed_source_ids":["acme-rec-0520","acme-rec-0624"]},"meetings":[{"id":"m1","date":"2026-05-20","title":"전략 회의 — 다음 분기 방향","source_id":"acme-rec-0520","path":"transcripts/2026/2026-05/2026-05-20_전략회의-다음분기.md"},{"id":"m2","date":"2026-06-24","title":"가격정책 회의 — 구독료 인상 여부","source_id":"acme-rec-0624","path":"transcripts/2026/2026-06/2026-06-24_가격정책-인상여부.md"}],"people":[{"name":"정우진","type":"person","role":"CEO","org":"Acme","summary":"시장에 먼저 신호를 던지고 반응으로 배우려는 속도 지향 창업자. 완성도보다 학습 속도를 우선하며, 팀이 스스로 답을 찾게 질문으로 이끈다.","evidence":"high","models":["speed-over-polish","declare-to-learn","question-led"],"evolution":[{"date":"2026-05-20","note":"무조건 빠른 인상 공표를 주장."},{"date":"2026-06-24","note":"이탈 데이터 보고 '단계적 인상'으로 톤 조정 — 속도 지향은 유지하되 리스크 수용."}]},{"name":"이서연","type":"person","role":"CPO","org":"Acme","summary":"제품 완성도를 신뢰의 전제로 보는 프로덕트 리더. 차별 기능 없이 가격을 올리면 신뢰가 깨진다고 보고, 사용자 가치가 선행돼야 한다고 주장한다.","evidence":"high","models":["value-before-price","trust-is-fragile"],"evolution":[{"date":"2026-06-24","note":"'번들 기능 먼저 출시 후 인상' 절충안을 제시하며 CEO와 접점 형성."}]},{"name":"박도현","type":"person","role":"CFO","org":"Acme","summary":"현금흐름과 런웨이를 판단의 축으로 두는 보수적 재무 리더. 성장도 현금 건전성 안에서만 유효하다고 본다.","evidence":"mid","models":["runway-first","growth-within-cash","investor-discipline-lens"]},{"name":"김하늘","type":"person","role":"영업총괄","org":"Acme","summary":"기존 고객 이탈을 최우선 리스크로 보는 신중론자. 채널·리텐션 관점에서 급격한 변화에 브레이크를 건다.","evidence":"mid","models":["churn-first","retention-moat"]},{"name":"최민석","type":"person","role":"CTO","org":"Acme","summary":"실험 인프라로 의사결정을 대체하려는 기술 리더. '논쟁 대신 A/B로 확인하자'는 데이터 우선 관점.","evidence":"mid","models":["experiment-over-debate"]},{"name":"그로우캐피탈","type":"org","role":"시리즈B 리드 투자사","summary":"Acme의 리드 투자사. 리더들의 발언에서 '성장률만큼 소진 규율을 본다'는 상(像)으로 등장 — 투자사 자신의 발언이 아니므로 추정(mid) 이상으로 올리지 않는다.","evidence":"mid","models":[]}],"models":[{"id":"speed-over-polish","category":"전략","title":"완성도보다 학습 속도가 먼저다","desc":"완벽히 다듬기보다 빠르게 내보내 시장 반응으로 배운다. 속도가 곧 정보다.","evidence":"high","holders":["정우진"],"quote":"다 갖추고 내면 이미 늦어요. 일단 던지고 반응 보고 고치는 게 정보가 제일 빨라요.","count":2,"first_seen":"2026-05-20","last_seen":"2026-06-24","related":["declare-to-learn"]},{"id":"declare-to-learn","category":"제품","title":"선언이 곧 학습 장치다","desc":"가격 인상을 먼저 공표해 내부 리소스를 모으고 고객 반응을 조기에 확인한다.","evidence":"high","holders":["정우진"],"quote":"인상한다고 먼저 말해두면 팀이 거기에 맞춰 움직이고, 나갈 사람은 지금 갈려요.","count":1,"first_seen":"2026-05-20","related":["speed-over-polish","value-before-price"]},{"id":"question-led","category":"조직","title":"답을 주지 않고 질문으로 이끈다","desc":"결론을 박지 않고 질문을 던져 리더들이 스스로 패턴을 찾게 한다.","evidence":"high","holders":["정우진"],"quote":"제가 정답을 말하면 다들 거기서 멈춰요. 그래서 '그럼 이건 어떻게 될까요' 하고 되묻죠.","count":1,"first_seen":"2026-05-20"},{"id":"value-before-price","category":"제품","title":"가치가 가격보다 먼저다","desc":"차별 기능·사용자 가치가 선행되지 않으면 인상은 신뢰를 깬다. 번들 기능 출시 후 과금해야 설득력이 있다.","evidence":"high","holders":["이서연"],"quote":"지금 올리면 '뭐가 좋아졌는데?' 소리 들어요. 줄 걸 먼저 주고 받아야죠.","count":2,"first_seen":"2026-05-20","last_seen":"2026-06-24","related":["trust-is-fragile","declare-to-learn"]},{"id":"trust-is-fragile","category":"제품","title":"신뢰는 깨지기 쉽다","desc":"한 번 잃은 구독자 신뢰는 회복이 비싸다. 변화는 신뢰 예산 안에서 집행한다.","evidence":"mid","holders":["이서연"],"count":1,"first_seen":"2026-05-20","related":["churn-first"]},{"id":"runway-first","category":"재무","title":"런웨이가 모든 결정의 상한이다","desc":"현금 소진 속도가 전략의 경계. 성장도 런웨이 안에서만 유효하다.","evidence":"mid","holders":["박도현"],"quote":"재밌는 실험 다 좋은데, 우리 통장이 14개월이에요. 거기서 시작해요.","count":1,"first_seen":"2026-05-20","related":["growth-within-cash"]},{"id":"growth-within-cash","category":"재무","title":"현금 건전성 안에서만 성장한다","desc":"성장률보다 현금 회수 주기를 먼저 본다. 인상은 현금흐름 개선 카드로도 유효.","evidence":"mid","holders":["박도현"],"count":1,"first_seen":"2026-06-24","related":["runway-first"]},{"id":"investor-discipline-lens","category":"투자","title":"투자자는 성장률만큼 소진 규율을 본다","desc":"다음 라운드 관점에서 번레이트 규율이 성장 스토리의 신뢰도를 좌우한다고 본다. 그로우캐피탈에 '대한' 박도현의 믿음 — 투자사 자신의 발언이 아니므로 mid.","evidence":"mid","holders":["박도현"],"about":["그로우캐피탈"],"quote":"그로우 쪽은 미팅 열면 우리 소진 곡선부터 물어볼 거예요.","count":1,"first_seen":"2026-06-24","related":["runway-first"]},{"id":"churn-first","category":"리스크","title":"이탈을 최우선으로 본다","desc":"급격한 가격 변화는 기존 고객 이탈로 직결된다. 영향 최소 범위에서 단계적으로.","evidence":"mid","holders":["김하늘"],"quote":"숫자로만 보면 인상이 맞는데, 현장은 '배신감'이라고 말해요. 그게 이탈이에요.","count":1,"first_seen":"2026-06-24","related":["retention-moat","trust-is-fragile"]},{"id":"retention-moat","category":"전략","title":"리텐션이 진짜 해자다","desc":"신규 획득보다 재구독율이 방어벽. 가격은 리텐션을 해치지 않는 선에서 조정.","evidence":"mid","holders":["김하늘"],"count":1,"first_seen":"2026-06-24"},{"id":"experiment-over-debate","category":"기술","title":"논쟁 대신 실험으로 결정한다","desc":"의견 충돌은 A/B 테스트로 푼다. 인상폭도 코호트 실험으로 검증 후 확정.","evidence":"mid","holders":["최민석"],"quote":"이거 회의로 30분 싸울 게 아니라, 두 그룹 나눠서 2주면 답 나와요.","count":1,"first_seen":"2026-06-24"}],"relations":[{"from":"정우진","to":"이서연","type":"tension","topic":"인상 타이밍","note":"CEO(선언 먼저) vs CPO(가치 먼저) — 핵심 대립."},{"from":"이서연","to":"김하늘","type":"agree","topic":"신뢰·이탈","note":"둘 다 급격한 변화의 신뢰 훼손을 경계."},{"from":"박도현","to":"정우진","type":"builds-on","topic":"인상=현금 카드","note":"CFO가 CEO의 인상론에 '현금흐름 개선' 논거를 더함."},{"from":"최민석","to":"정우진","type":"builds-on","topic":"실험으로 속도내기","note":"CTO가 CEO의 속도론을 A/B 실험 방법론으로 구체화."},{"from":"김하늘","to":"박도현","type":"tension","topic":"성장 vs 이탈","note":"재무는 인상 찬성 쪽, 영업은 이탈 우려로 신중."}],"bets":[{"tag":"monetize","title":"구독료 단계적 인상","desc":"번들 기능 출시와 묶어 2단계로 인상, 코호트 A/B로 폭 검증."},{"tag":"product","title":"번들 기능 선출시","desc":"인상 전 차별 기능을 먼저 제공해 '가치→가격' 순서 확보."},{"tag":"platform","title":"가격 실험 인프라","desc":"코호트 분리·과금 실험을 상시 돌릴 수 있는 실험 플랫폼."}],"risks":[{"level":"high","title":"인상 타이밍 미결","desc":"CEO(선언 먼저) vs CPO(가치 먼저) 이견이 미결 — 정렬 지체 시 실행 혼선."},{"level":"high","title":"기존 구독자 이탈","desc":"차별 가치 없이 인상하면 리텐션 하락으로 직결."},{"level":"mid","title":"런웨이 압박","desc":"현금 14개월 — 실험 기간이 길면 재무 여유 감소."}],"timeline":[{"date":"2026-05-20","meeting":"m1","change":"CEO 주도로 '빠른 인상' 방향 제시, CPO·영업 신중론 대립."},{"date":"2026-06-24","meeting":"m2","change":"이탈 데이터 확인 후 '번들 선출시 + 단계적 인상 + A/B 검증'으로 팀 절충안 수렴."}]}
 </script>
 
 <script>
@@ -206,23 +211,35 @@
     const relations=data.relations||[], bets=data.bets||[], risks=data.risks||[];
     const timeline=data.timeline||[], meetings=data.meetings||[];
     const modelById=Object.fromEntries(models.map(m=>[m.id,m]));
+    const holdersOf=m=>m.holders||m.people||[];               // v2 holders / v1 people
+    const isOrg=p=>(p.type||"person")==="org";
+    const persons=people.filter(p=>!isOrg(p)), orgs=people.filter(isOrg);
 
     // hero
     $("h-title").textContent=meta.title||"멘탈모델 온톨로지";
     $("h-sub").textContent=meta.subtitle||"";
-    const stats=[["인물",people.length],["멘탈모델",models.length],["관계",relations.length],["베팅",bets.length],["리스크",risks.length]];
+    const stats=[["인물",persons.length],["대상 조직",orgs.length],["멘탈모델",models.length],["관계",relations.length],["베팅",bets.length],["리스크",risks.length]];
     $("stats").innerHTML=stats.filter(s=>s[1]).map(s=>`<div class="stat"><div class="num">${s[1]}</div><div class="lab">${s[0]}</div></div>`).join("");
 
-    // people
-    $("people-grid").innerHTML=people.map(p=>`
-      <div class="pcard">
-        <div class="ph"><div><h3>${esc(p.name)}</h3><div class="role">${esc(p.role||"")}</div></div>
+    // people (persons first; org cards show the models ABOUT them)
+    const card=p=>{
+      const org=isOrg(p);
+      const held=(p.models||[]).map(id=>(modelById[id]||{}).title||id);
+      const about=org?models.filter(m=>(m.about||[]).includes(p.name)).map(m=>{
+        const h=holdersOf(m); return esc(m.title)+(h.length?` <span class="who">— ${esc(h.join(", "))}의 시각</span>`:"");
+      }):[];
+      const items=org?about:held;
+      return `
+      <div class="pcard${org?' orgcard':''}">
+        <div class="ph"><div><h3>${esc(p.name)}${org?' <span class="orgbadge">대상</span>':''}</h3><div class="role">${esc(p.role||"")}</div></div>
           <span class="ev ${p.evidence||'low'}">${EV[p.evidence||'low']}</span></div>
         <div class="psum">${esc(p.summary||"")}</div>
-        <div class="lbl">연결된 모델</div>
-        <ul>${(p.models||[]).map(id=>`<li><span class="dot"></span>${esc((modelById[id]||{}).title||id)}</li>`).join("")}</ul>
+        <div class="lbl">${org?"이 대상에 대한 우리의 모델":"보유한 모델"}</div>
+        <ul>${items.map(t=>`<li><span class="dot"></span>${org?t:esc(t)}</li>`).join("")||'<li class="empty">없음</li>'}</ul>
         ${(p.evolution&&p.evolution.length)?`<div class="evo"><div class="lbl">사고 변화</div>${p.evolution.map(e=>`<div class="row"><span class="d">${esc(e.date)}</span><span>${esc(e.note)}</span></div>`).join("")}</div>`:""}
-      </div>`).join("");
+      </div>`;
+    };
+    $("people-grid").innerHTML=[...persons,...orgs].map(card).join("");
 
     // models + filters
     const cats=["전체",...[...new Set(models.map(m=>m.category).filter(Boolean))]];
@@ -235,7 +252,7 @@
           <h4>${esc(m.title)}</h4>
           <p class="mdesc">${esc(m.desc||"")}</p>
           ${m.quote?`<div class="quote">“${esc(m.quote)}”</div>`:""}
-          <div class="ptags">${(m.people||[]).map(n=>`<span class="ptag">${esc(n)}</span>`).join("")}</div>
+          <div class="ptags">${holdersOf(m).map(n=>`<span class="ptag">${esc(n)}</span>`).join("")}${(m.about||[]).map(n=>`<span class="ptag about">→ ${esc(n)}</span>`).join("")}</div>
         </div>`).join("");
     };
     $("filters").innerHTML=cats.map((c,i)=>`<button data-c="${esc(c)}" class="${i===0?'on':''}">${esc(c)}</button>`).join("");
@@ -286,9 +303,13 @@
   }
 
   function drawGraph(people,relations){
-    const svg=$("relsvg"), W=800,H=500,cx=W/2,cy=H/2, R=Math.min(180, 60+people.length*22);
-    const idx=Object.fromEntries(people.map((p,i)=>[p.name,i]));
-    const pos=people.map((p,i)=>{const a=-Math.PI/2 + i*2*Math.PI/people.length;return{x:cx+R*Math.cos(a),y:cy+R*Math.sin(a),name:p.name,role:p.role||""};});
+    // only entities that appear in a relation; persons solid, orgs dashed amber
+    const inRel=new Set(relations.flatMap(r=>[r.from,r.to]));
+    const nodes=people.filter(p=>inRel.has(p.name));
+    if(!nodes.length){$("relsvg").innerHTML="";return;}
+    const svg=$("relsvg"), W=800,H=500,cx=W/2,cy=H/2, R=Math.min(180, 60+nodes.length*22);
+    const idx=Object.fromEntries(nodes.map((p,i)=>[p.name,i]));
+    const pos=nodes.map((p,i)=>{const a=-Math.PI/2 + i*2*Math.PI/nodes.length;return{x:cx+R*Math.cos(a),y:cy+R*Math.sin(a),name:p.name,role:p.role||"",org:(p.type||"person")==="org"};});
     let s="";
     // edges
     relations.forEach(r=>{const a=pos[idx[r.from]],b=pos[idx[r.to]];if(!a||!b)return;
@@ -298,7 +319,7 @@
       const outward=(p.x-cx); const anchor=outward>10?"start":outward<-10?"end":"middle";
       const lx=p.x + (anchor==="start"?12:anchor==="end"?-12:0);
       const ly=p.y + (Math.abs(outward)<10?(p.y<cy?-16:22):4);
-      s+=`<circle cx="${p.x}" cy="${p.y}" r="9" fill="#16181f" stroke="#8fd4a8" stroke-width="2.5"/>`;
+      s+=`<circle cx="${p.x}" cy="${p.y}" r="9" fill="#16181f" stroke="${p.org?'#e6b34a':'#8fd4a8'}" stroke-width="2.5" ${p.org?'stroke-dasharray="3 3"':''}/>`;
       s+=`<text x="${lx}" y="${ly}" fill="#e9ecf2" font-size="15" font-weight="700" text-anchor="${anchor}">${esc(p.name)}</text>`;
       s+=`<text x="${lx}" y="${ly+16}" fill="#8b93a3" font-size="11.5" text-anchor="${anchor}">${esc(p.role)}</text>`;
     });
