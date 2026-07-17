@@ -91,8 +91,25 @@ Goal: replace "Speaker 1/2" and misattributed labels with real names, learning o
 5. Update `speakers.json` with confirmations (add aliases, meeting dates, refine traits). This makes future runs progressively quieter — that's the point.
    - **Aliases are load-bearing**: `build_db.py` joins transcripts to the ontology through them. Record every raw label a person appears under (한글 이름, 영어 이름, 별명 — e.g. `James(정우진)` ← `정우진`, `James`, `제임스`). `Name(Other)` style names get both halves matched automatically, but anything else must be listed.
 6. If the user says "몰라도 돼 / skip", keep generic labels and move on. Never block the pipeline on attribution.
+7. **Auto-inference before asking** — resolve what context already proves, ask only about the rest:
+   - **Solo recordings** (강연, 메모, 1인 발화 — one voice throughout): all utterances → the owner. Apply silently.
+   - **Two-party calls** (개인-통화/1on1 with exactly one counterpart in participants, two distinct labels): infer the mapping from address terms ("대표님", "○○님"), self-introductions, and who the summary says initiated. Clear split + previously confirmed counterpart in `speakers.json` → auto-accept; clear split + new counterpart → propose both mappings as the default in ONE question; unclear → ask normally.
+   - Never auto-assign over an existing **real-name** label — only generic labels (`Speaker N`, `발화자 N`, empty) are candidates.
 
-## Stage 4 — Clean & save markdown
+**Backfill mode** — trigger: "화자 정리해줘 / 화자 백필" (anytime after Stage 7). Old imports accumulate generic labels; this pays that debt down in one interactive session:
+
+1. Rank meetings by unresolved share, important categories first:
+   ```sql
+   SELECT m.path, m.date, m.title, m.category, COUNT(*) AS total,
+          SUM(u.speaker='' OR u.speaker LIKE 'Speaker%' OR u.speaker LIKE '발화자%') AS unresolved
+   FROM utterances u JOIN meetings m ON m.rowid = u.meeting_rowid
+   GROUP BY u.meeting_rowid
+   HAVING unresolved * 2 > total
+   ORDER BY m.category IN ('내부-전략','내부-주간회의','내부-1on1') DESC, total DESC
+   LIMIT 10;
+   ```
+2. For each meeting: Read the transcript, apply rule 7, then the standard Stage 3 question flow (batch up to 4 speakers per AskUserQuestion, with quote samples).
+3. **Patch labels with a python find→replace on that file only** (e.g. `**[Speaker 2]` → `**[이서연]`) — never re-emit the transcript through the LLM. Update `speakers.json`, then rerun Stage 5 + Stage 7 and report the coverage change (build_db prints it).
 
 **Token economy rule: format the transcript body with a python script — never have the LLM rewrite or re-emit the transcript.** The LLM decides only: title, category, summary, speaker mapping, light global fixes (recurring proper-noun STT errors as find→replace pairs), and whether to split.
 

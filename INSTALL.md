@@ -72,6 +72,13 @@ brew install ffmpeg   # macOS  /  apt install ffmpeg  # Linux
 
 ### 6. Verify / 검증
 
+스크립트 파이프라인 자체 점검 (선택, 가상 데이터만 사용):
+Optional self-check of the script pipeline (fictional data only):
+
+```bash
+python3 <repo>/tests/run_tests.py   # PASS: N passed, 0 failed 확인
+```
+
 재시작된 세션에서 사용자에게 이렇게 시켜보라고 안내:
 In the restarted session, have the user try:
 

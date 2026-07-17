@@ -20,6 +20,7 @@
 | `skills/.../assets/viewer.html` | 시각화 뷰어 — `objects.json` 더블클릭/드래그로 열림 (서버·인터넷 불필요) |
 | `skills/.../scripts/` | `build_db.py`(SQLite DB + 화자 별칭 조인) · `validate.py`(무결성·정직성·커버리지 검증) · `build_index.py`(인덱스) · `whisper_transcribe.py`(로컬 전사) · `migrate_objects.py`(v1→v2 스키마 승격) |
 | `examples/sample-objects.json` | 완성 예시(가상 Acme) — 뷰어로 바로 열어 결과 형태 확인 |
+| `tests/run_tests.py` | 자체 테스트 스위트 — 가상 데이터로 파이프라인 전체 검증 (`python3 tests/run_tests.py`) |
 
 ---
 
