@@ -11,8 +11,12 @@ Plain markdown — works standalone or inside an Obsidian vault.
 ├── _index/
 │   ├── INDEX.md                  # human-readable index (category/month, wikilinks)
 │   └── catalog.json              # machine-readable index (for agents/tools)
+├── people/                       # person dossiers (build_dossiers.py) — the 인물 중심 artifact
+│   ├── INDEX.md                  # tiers, contacts (auto-collected), promotion candidates
+│   └── <이름>.md                  # identity · 개인 맥락 · 멘탈모델 · 관계 · 접촉 이력 · 수기 메모(보존)
 ├── _meta/
-│   ├── speakers.json             # learning speaker profiles (Stage 3) — aliases power DB joins
+│   ├── speakers.json             # PERSON REGISTRY (Stage 3) — aliases power DB joins;
+│   │                             #   tier/first_met_context/intro_by/personal[] power dossiers
 │   ├── state.json                # {"last_synced": "YYYY-MM-DD"}
 │   └── deletion-candidates.md    # junk recordings to delete in the Plaud app
 ├── _whisper/                     # local transcription workspace
@@ -39,14 +43,22 @@ Plain markdown — works standalone or inside an Obsidian vault.
   parts, aggregation passes) lives under `_ontology/_work/<date-label>/` or the session
   scratchpad — never loose files in `_ontology/` or `_meta/`. After `validate.py`
   passes, `_work/` contents may be deleted.
-- **speakers.json** — the `name` here is the canonical name used everywhere
-  (ontology `people[].name`, DB joins). `aliases` must list **every raw label** the
-  person appears under in transcripts; `Name(Other)` names match both halves
-  automatically:
+- **speakers.json = the person registry.** The `name` is the canonical name used
+  everywhere (ontology `people[].name`, DB joins, dossier filenames). `aliases`
+  must list **every raw label** the person appears under in transcripts;
+  `Name(Other)` names match both halves automatically:
   ```json
   [{ "name": "James(정우진)", "role": "CEO", "org": "Acme",
      "aliases": ["제임스", "Speaker 2(2026-07-10)"],
-     "traits": "구조 먼저, 숫자로 검증", "meetings": ["2026-07-10"] }]
+     "traits": "구조 먼저, 숫자로 검증", "meetings": ["2026-07-10"],
+     "tier": "core",
+     "first_met_context": "SaaS 밋업에서 패널로 처음 만남",
+     "intro_by": "이서연",
+     "personal": [{ "date": "2026-06-24", "note": "10월 마라톤 준비 중" }] }]
   ```
+  `tier`: `core`(멘탈모델까지 깊게) / `acquaintance`(가벼운 도시에) / `contact`(이름·회의만,
+  도시에 없음 — INDEX에 자동 수집). Registry entries without `tier` default to core.
+  People found in transcripts but not in the registry are auto-listed as contacts;
+  ≥3 meetings → promotion candidate in `people/INDEX.md`.
 - **Privacy**: the corpus is sensitive. Keep local. If it lives near a git repo, gitignore it.
   Recommended location: a dedicated folder or the user's Obsidian vault (iCloud-synced, off-repo).

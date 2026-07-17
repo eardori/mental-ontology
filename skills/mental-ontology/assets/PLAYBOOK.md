@@ -68,6 +68,27 @@ GROUP BY speaker ORDER BY n DESC;
 -- F. Meeting lookup then deep-read
 SELECT rowid, date, title, category, path FROM meetings
 WHERE date BETWEEN '2026-06-01' AND '2026-07-31' AND category='내부-전략';
+
+-- G. Interaction timeline for one person (통화처럼 화자 미상이어도 잡힘)
+SELECT m.date, m.title, m.category FROM person_meetings pm
+JOIN meetings m ON m.rowid = pm.meeting_rowid
+WHERE pm.person = 'James(정우진)' ORDER BY m.date DESC;
+
+-- H. Neglect check — core/acquaintance 중 오래 못 만난 사람 (도시에 frontmatter의
+--    last_met으로도 가능; SQL 버전)
+SELECT pm.person, MAX(m.date) AS last_met, COUNT(DISTINCT pm.meeting_rowid) AS total
+FROM person_meetings pm JOIN meetings m ON m.rowid = pm.meeting_rowid
+GROUP BY pm.person HAVING total >= 3 ORDER BY last_met ASC LIMIT 15;
+
+-- I. Co-attendance — 누구와 자주 같이 만나는가 / 두 사람의 공통 회의
+SELECT p2.person, COUNT(DISTINCT p2.meeting_rowid) n FROM person_meetings p1
+JOIN person_meetings p2 ON p2.meeting_rowid = p1.meeting_rowid
+WHERE p1.person = 'James(정우진)' AND p2.person != p1.person
+GROUP BY p2.person ORDER BY n DESC LIMIT 10;
+
+-- J. Network — 소개의 연쇄, 관계 종류별 조회
+SELECT kind, a, b, since, note FROM network WHERE a LIKE '%정우진%' OR b LIKE '%정우진%';
+SELECT a AS 소개자, b AS 소개받은사람, note FROM network WHERE kind = '소개';
 ```
 
 ### Question patterns → how to answer
@@ -81,6 +102,10 @@ WHERE date BETWEEN '2026-06-01' AND '2026-07-31' AND category='내부-전략';
 | "우리 조직 어디가 안 맞아?" | Recipe B + timeline 최근 국면 → tension별: 누가·무엇·언제부터·현재 상태 · 방치 리스크 |
 | "Y 주제 논의 이력 정리해줘" | Recipe C/E/F → 시간순 논의 요약 + 입장 변화 + 미결 사항 |
 | "지난 분기에 뭐가 변했어?" | Recipe D + 해당 기간 meetings 훑기 → 국면 변화 서술 |
+| "X를 언제 처음/마지막으로 만났지?" | Recipe G — 또는 `people/X.md` 도시에 frontmatter가 즉답 |
+| "요즘 소홀했던 사람 없나?" | Recipe H → 오래 못 만난 상위 인물 + 마지막 회의의 미결 주제를 함께 제시(연락 명분) |
+| "X를 누가 소개해줬지? / X랑 같이 아는 사람?" | Recipe J (network) + Recipe I (동석) + 레지스트리 `intro_by` |
+| "X 근황/개인적인 거 뭐 있었지?" | `people/X.md` 도시에의 개인 맥락 + 수기 메모 섹션 |
 
 ---
 

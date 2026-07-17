@@ -18,7 +18,7 @@
 | `INSTALL.md` | Claude가 직접 실행하는 설치 가이드 (한 줄 요청으로 설치) |
 | `skills/.../assets/PLAYBOOK.md` | **질문·전략 워크북** — SQL 레시피 + 사업구상/전략 워크플로우 5종 |
 | `skills/.../assets/viewer.html` | 시각화 뷰어 — `objects.json` 더블클릭/드래그로 열림 (서버·인터넷 불필요) |
-| `skills/.../scripts/` | `build_db.py`(SQLite DB + 화자 별칭 조인) · `validate.py`(무결성·정직성·커버리지 검증) · `build_index.py`(인덱스) · `whisper_transcribe.py`(로컬 전사) · `migrate_objects.py`(v1→v2 스키마 승격) |
+| `skills/.../scripts/` | `build_db.py`(SQLite DB + 화자 별칭 조인 + 접촉 기록) · `build_dossiers.py`(인물 도시에) · `validate.py`(무결성·정직성·커버리지 검증) · `build_index.py`(인덱스) · `whisper_transcribe.py`(로컬 전사) · `migrate_objects.py`(v1→v2 스키마 승격) |
 | `examples/sample-objects.json` | 완성 예시(가상 Acme) — 뷰어로 바로 열어 결과 형태 확인 |
 | `tests/run_tests.py` | 자체 테스트 스위트 — 가상 데이터로 파이프라인 전체 검증 (`python3 tests/run_tests.py`) |
 
@@ -57,7 +57,7 @@ Claude가 스킬 복사 → Plaud MCP 등록까지 자동 수행. 재시작 후 
 |---|---|---|
 | **인터랙티브 HTML 뷰어** | `_ontology/index.html` | 더블클릭 한 번으로 전체 지도 탐색 (모델·관계 그래프·시간축) |
 | **md 종합 리포트** | `_ontology/REPORT.md` | Obsidian/Notion에 넣고 읽는 내러티브 보고서 |
-| **인물별 프로필 카드** | `_ontology/profiles/PROFILE-이름.md` | 1:1 전, 위임 전, 피칭 전에 한 사람만 빠르게 훑기 |
+| **인물 도시에** | `people/이름.md` | 한 사람의 모든 것 — 접촉 이력·개인 맥락·사고방식·관계·수기 메모(재생성해도 보존). 1:1 전, 위임 전, 피칭 전에 |
 
 ### ② 묻기 (Ask) — 회의 전체가 검색 가능한 DB가 됩니다
 

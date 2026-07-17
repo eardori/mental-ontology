@@ -100,6 +100,19 @@ def main():
                 errors.append(f"relations[]: {end} '{r.get(end)}' not in people[]")
         if r.get("type") not in REL:
             errors.append(f"relations[{r.get('from')}→{r.get('to')}]: type must be one of {sorted(REL)}")
+    reg_names = set()
+    reg_path = os.path.join(corpus, "_meta", "speakers.json")
+    if os.path.exists(reg_path):
+        reg_names = {e.get("name") for e in json.load(open(reg_path, encoding="utf-8"))}
+    for n in d.get("network", []):
+        if not n.get("kind"):
+            errors.append(f"network[{n.get('a')}↔{n.get('b')}]: kind is required")
+        for end in ("a", "b"):
+            v = n.get(end)
+            if not v:
+                errors.append(f"network[]: missing '{end}'")
+            elif v not in names and v not in reg_names:
+                warns.append(f"network[]: '{v}' not in people[] or the registry (speakers.json)")
     mtg_ids = {m.get("id") for m in d.get("meetings", [])}
     for t in d.get("timeline", []):
         if t.get("meeting") and t["meeting"] not in mtg_ids:

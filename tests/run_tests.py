@@ -102,6 +102,10 @@ def objects_v2(m1_path, m2_path):
         "relations": [
             {"from": "정우진", "to": "이서연", "type": "tension", "topic": "속도 vs 가치"},
         ],
+        "network": [
+            {"a": "이서연", "b": "정우진", "kind": "소개", "since": "2024-11-01",
+             "note": "SaaS 밋업에서 소개"},
+        ],
         "timeline": [{"date": "2026-05-20", "meeting": "m1", "change": "방향 제시"}],
     }
 
@@ -168,6 +172,17 @@ def test_pipeline_v2(tmp):
     check("[ts - ts] range parses", got == [("00:01",)], str(got))
     got = q("SELECT COUNT(*) FROM model_about WHERE entity='넥스트라'")
     check("model_about populated", got[0][0] == 1, str(got))
+    got = q("SELECT kind FROM network")
+    check("network table populated", got == [("소개",)], str(got))
+    got = q("""SELECT pm.src FROM person_meetings pm JOIN meetings m
+               ON m.rowid=pm.meeting_rowid
+               WHERE pm.person='정우진' AND m.title='통화 선지급'""")
+    check("interaction recorded from participants (unattributed call)",
+          got == [("participant",)], str(got))
+    got = q("""SELECT COUNT(*) FROM person_meetings p1
+               JOIN person_meetings p2 ON p2.meeting_rowid=p1.meeting_rowid
+               WHERE p1.person='정우진' AND p2.person='이서연'""")
+    check("co-attendance derivable (정우진·이서연 동석)", got[0][0] >= 1, str(got))
     fts = q("SELECT value FROM meta WHERE key='fts5'")[0][0]
     if fts == "yes":
         got = q("SELECT COUNT(*) FROM utterances_fts WHERE utterances_fts MATCH '별칭'")
@@ -177,6 +192,29 @@ def test_pipeline_v2(tmp):
     rc, out = run("validate.py", root)
     check("validate passes on clean v2 corpus", rc == 0, out)
     check("validate reports attribution coverage", "coverage:" in out, out)
+
+def test_dossiers(tmp):
+    print("\n[1b] build_dossiers — person dossiers, INDEX, manual-notes preservation")
+    root = tmp / "corpus_v2"
+    rc, out = run("build_dossiers.py", root)
+    check("build_dossiers exits 0", rc == 0, out)
+    dp = root / "people" / "정우진.md"
+    check("dossier file created", dp.exists())
+    t = dp.read_text(encoding="utf-8")
+    check("dossier has interaction timeline incl. participant-only call",
+          "접촉 이력" in t and "통화-선지급" in t, t[:400])
+    check("dossier shows held models", "속도가 먼저다" in t, "")
+    check("dossier shows network edge", "소개" in t and "이서연" in t, "")
+    dp.write_text(t.replace(
+        "(여기에 자유롭게 메모하세요 — 도시에를 다시 생성해도 이 섹션은 보존됩니다)",
+        "마라톤 완주 축하 문자 보낼 것"), encoding="utf-8")
+    run("build_dossiers.py", root)
+    check("manual notes survive regeneration",
+          "마라톤 완주 축하 문자 보낼 것" in dp.read_text(encoding="utf-8"))
+    idx = (root / "people" / "INDEX.md").read_text(encoding="utf-8")
+    check("INDEX lists core tier", "Core" in idx and "정우진" in idx, idx[:300])
+    check("INDEX auto-collects contacts (Naomi Park, Mina)",
+          "Naomi Park" in idx and "Mina" in idx, "")
 
 def test_validate_catches_errors(tmp):
     print("\n[2] validate — must catch integrity & honesty violations")
@@ -254,6 +292,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="mental-ontology-tests-") as td:
         tmp = Path(td)
         test_pipeline_v2(tmp)
+        test_dossiers(tmp)
         test_validate_catches_errors(tmp)
         test_migration_v1_to_v2(tmp)
     print(f"\n{'FAIL' if FAILURES else 'PASS'}: {PASS} passed, {len(FAILURES)} failed"

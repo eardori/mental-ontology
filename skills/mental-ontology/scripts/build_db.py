@@ -138,6 +138,9 @@ def main():
     CREATE TABLE model_related(model_id TEXT, related_id TEXT);
     CREATE TABLE person_aliases(canonical TEXT, alias TEXT);
     CREATE TABLE relations(from_person TEXT, to_person TEXT, type TEXT, topic TEXT, note TEXT);
+    CREATE TABLE network(a TEXT, b TEXT, kind TEXT, since TEXT, note TEXT, source TEXT);
+    CREATE TABLE person_meetings(person TEXT, meeting_rowid INTEGER, src TEXT);
+    CREATE INDEX idx_pm_person ON person_meetings(person);
     CREATE TABLE timeline(date TEXT, meeting TEXT, change TEXT);
     CREATE TABLE bets(tag TEXT, title TEXT, desc TEXT);
     CREATE TABLE risks(level TEXT, title TEXT, desc TEXT);
@@ -181,6 +184,10 @@ def main():
         for r in d.get("relations", []):
             c.execute("INSERT INTO relations VALUES(?,?,?,?,?)",
                       (r.get("from"), r.get("to"), r.get("type", ""), r.get("topic", ""), r.get("note", "")))
+        for n in d.get("network", []):
+            c.execute("INSERT INTO network VALUES(?,?,?,?,?,?)",
+                      (n.get("a"), n.get("b"), n.get("kind", ""), n.get("since", ""),
+                       n.get("note", ""), n.get("source", "")))
         for t in d.get("timeline", []):
             c.execute("INSERT INTO timeline VALUES(?,?,?)",
                       (t.get("date", ""), t.get("meeting", ""), t.get("change", "")))
@@ -226,13 +233,22 @@ def main():
         if fm.get("source_id"):
             # split recordings (_part1/_part2) legitimately share a source_id
             sid_paths[(fm["source_id"], str(fm.get("part", "")))].append(os.path.relpath(p, corpus))
+        # interaction record: who was in this meeting (works even when utterances
+        # carry no speaker labels — e.g. phone calls — via frontmatter participants)
+        pm = set()
+        for part in (parts if isinstance(parts, list) else [parts]):
+            if part and str(part).strip():
+                pm.add((resolve(str(part), amap), "participant"))
         file_utt = 0
         pending, buf = None, []  # header with no same-line text: body follows on next lines
 
         def emit(raw, ts, text):
             nonlocal n_utt, file_utt
             speaker = resolve(raw, amap)
-            spk_stats[classify(raw, speaker)] += 1
+            kind = classify(raw, speaker)
+            spk_stats[kind] += 1
+            if kind in ("canonical", "raw-name"):
+                pm.add((speaker, "speaker"))
             c.execute("INSERT INTO utterances VALUES(?,?,?,?,?)", (mid, speaker, raw, ts, text))
             n_utt += 1
             file_utt += 1
@@ -266,6 +282,10 @@ def main():
             if UTT_MAYBE.match(s):
                 dropped[os.path.relpath(p, corpus)] += 1
         flush()
+        for person, src in sorted(pm):
+            if src == "participant" and (person, "speaker") in pm:
+                continue  # speaker evidence wins over the participant listing
+            c.execute("INSERT INTO person_meetings VALUES(?,?,?)", (person, mid, src))
         if file_utt == 0:
             zero_files.append(os.path.relpath(p, corpus))
     dup_sids = {k: v for k, v in sid_paths.items() if len(v) > 1}
@@ -297,6 +317,9 @@ def main():
           f"meetings {q('SELECT COUNT(*) FROM meetings')} | utterances {n_utt} | fts5 {'ON' if fts else 'OFF'}")
     print(f"  alias map: {n_canon} canonical names, {len(amap)} aliases"
           + (f" | CONFLICTS dropped: {sorted(conflicts)}" if conflicts else ""))
+    print(f"  interactions: {q('SELECT COUNT(*) FROM person_meetings')} person-meeting links "
+          f"across {q('SELECT COUNT(DISTINCT person) FROM person_meetings')} people | "
+          f"network edges {q('SELECT COUNT(*) FROM network')}")
     if n_utt:
         pct = lambda k: f"{100.0 * spk_stats[k] / n_utt:.1f}%"
         print(f"  speaker attribution: canonical {pct('canonical')} · other-name {pct('raw-name')}"

@@ -54,6 +54,13 @@ B: quality-first). Do not smooth them over.
 ### 5) Bets ↔ Risks
 Execution candidates (bets) that surfaced, matched against the risks that constrain them.
 
+### 6) Network — 사회적 관계 (separate axis from relations)
+`relations` = how people's *thinking* interacts. `network` = how people are *actually
+connected*: 소개(who introduced whom — the most valuable edge for a networker),
+협업, 투자, 사제, 친분, 거래, 경쟁. Extract when the transcript reveals it
+("○○님 소개로 뵙게 됐습니다" → `{a: 소개자, b: 소개받은 사람, kind: "소개"}`).
+Network members may be registry people not present in the ontology's `people[]`.
+
 ### Quality principles
 - **No flattery, stay neutral** — capture how people actually think, not a nice version.
 - **Invent nothing** — no people or models without transcript grounding.
@@ -99,6 +106,7 @@ See `schema.json` for the JSON Schema. Shape:
     "related": ["other-model-id"]
   }],
   "relations": [{ "from": "", "to": "", "type": "agree|tension|builds-on", "topic": "", "note": "" }],
+  "network": [{ "a": "", "b": "", "kind": "소개|협업|투자|사제|친분|거래|경쟁|기타", "since": "", "note": "", "source": "" }],
   "bets": [{ "tag": "", "title": "", "desc": "" }],
   "risks": [{ "level": "high|mid|low", "title": "", "desc": "" }],
   "timeline": [{ "date": "", "meeting": "m1", "change": "" }]

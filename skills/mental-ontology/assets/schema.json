@@ -83,6 +83,7 @@
     },
     "relations": {
       "type": "array",
+      "description": "사고의 관계 — 누구의 생각이 누구와 합의/대립/발전하는가",
       "items": {
         "type": "object",
         "required": ["from", "to", "type"],
@@ -92,6 +93,22 @@
           "type": { "type": "string", "enum": ["agree", "tension", "builds-on"] },
           "topic": { "type": "string" },
           "note": { "type": "string" }
+        }
+      }
+    },
+    "network": {
+      "type": "array",
+      "description": "사회적 관계 — 소개·협업·투자 등 사람 사이의 실제 연결 (사고의 관계와 별개 축)",
+      "items": {
+        "type": "object",
+        "required": ["a", "b", "kind"],
+        "properties": {
+          "a": { "type": "string", "description": "인물/조직 이름 — people[] 또는 레지스트리(speakers.json)의 인물" },
+          "b": { "type": "string" },
+          "kind": { "type": "string", "description": "소개|협업|투자|사제|친분|거래|경쟁|기타 — 'A가 B를 소개'는 kind=소개, a=소개한 사람" },
+          "since": { "type": "string", "description": "YYYY-MM-DD (알게 된/시작된 시점)" },
+          "note": { "type": "string" },
+          "source": { "type": "string", "description": "근거 회의 date 또는 meetings[].id" }
         }
       }
     },
