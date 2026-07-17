@@ -52,10 +52,16 @@ Plain markdown — works standalone or inside an Obsidian vault.
      "aliases": ["제임스", "Speaker 2(2026-07-10)"],
      "traits": "구조 먼저, 숫자로 검증", "meetings": ["2026-07-10"],
      "tier": "core",
+     "relationship": "파트너",
+     "team": "경영진", "manager": "",
      "first_met_context": "SaaS 밋업에서 패널로 처음 만남",
      "intro_by": "이서연",
-     "personal": [{ "date": "2026-06-24", "note": "10월 마라톤 준비 중" }] }]
+     "personal": [{ "date": "2026-06-24", "note": "10월 마라톤 준비 중", "use": "사적" }] }]
   ```
+  `relationship` = 나(owner)와의 관계 (팀원/내부-타팀/상사·보드/파트너/고객/투자자/지인/가족 —
+  자유 텍스트). `team`/`manager` = **조직도** — org chart lives as per-person edges here,
+  and `build_db.py` derives them into the `network` table as `보고` edges so the
+  relationship graph and the org chart are one queryable graph.
   `tier`: `core`(멘탈모델까지 깊게) / `acquaintance`(가벼운 도시에) / `contact`(이름·회의만,
   도시에 없음 — INDEX에 자동 수집). Registry entries without `tier` default to core.
   People found in transcripts but not in the registry are auto-listed as contacts;

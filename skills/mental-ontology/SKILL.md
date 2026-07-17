@@ -93,6 +93,7 @@ Goal: replace "Speaker 1/2" and misattributed labels with real names, learning o
 4. Ask with the AskUserQuestion tool, one compact question per unknown speaker (batch up to 4 per call). Options = top candidates with a one-line quote sample of that speaker; the user can always pick "Other" and type a name. Example question: "Speaker 2는 누구인가요? (샘플: '...정산 주기를 당기면...')".
    - **Friction budget**: at ingest time, ask at most ONE batched question per sync (the most frequent unknowns). Defer the rest to **Backfill mode** — daily-loop friction is what silently kills data quality (skipped questions → Speaker N debt).
 5. Update `speakers.json` with confirmations (add aliases, meeting dates, refine traits). This makes future runs progressively quieter — that's the point.
+   - **Capture the relationship while you have the user's attention**: when confirming a NEW person (≤2 new people this sync — else defer), add ONE compact question to the same AskUserQuestion call: "〈이름〉님과는 어떤 관계인가요?" with options 팀원 / 파트너 / 고객 / 투자자 (+Other for 지인·상사·가족 등) → store as `relationship`. If the transcript already makes it obvious ("우리 CTO가…"), don't ask — record it. For 내부 people, fill `team`/`manager` from context when clear; otherwise leave for the 조직도 flow below.
    - **Aliases are load-bearing**: `build_db.py` joins transcripts to the ontology through them. Record every raw label a person appears under (한글 이름, 영어 이름, 별명 — e.g. `James(정우진)` ← `정우진`, `James`, `제임스`). `Name(Other)` style names get both halves matched automatically, but anything else must be listed.
 6. If the user says "몰라도 돼 / skip", keep generic labels and move on. Never block the pipeline on attribution.
 7. **Auto-inference before asking** — resolve what context already proves, ask only about the rest:
@@ -114,6 +115,12 @@ Goal: replace "Speaker 1/2" and misattributed labels with real names, learning o
    ```
 2. For each meeting: Read the transcript, apply rule 7, then the standard Stage 3 question flow (batch up to 4 speakers per AskUserQuestion, with quote samples).
 3. **Patch labels with a python find→replace on that file only** (e.g. `**[Speaker 2]` → `**[이서연]`) — never re-emit the transcript through the LLM. Update `speakers.json`, then rerun Stage 5 + Stage 7 and report the coverage change (build_db prints it).
+
+**조직도 flow** — trigger: "조직도 입력해줘 / 조직도 업데이트" (anytime):
+
+1. Ask the user to paste their org chart in any form (들여쓰기 텍스트, 마크다운, "A 밑에 B·C" 서술 — 뭐든). Parse it yourself.
+2. Update the registry: each person's `team` + `manager` (+ create missing people as `contact` with `relationship: 팀원`). Never overwrite an existing value silently — show a diff and confirm once.
+3. Rerun Stage 5. `build_db.py` derives the org chart into `network` as `보고` edges (source=조직도), so 관계도·조직도·동석 데이터가 한 그래프에서 조회된다. Dossiers show 소속·보고 라인.
 
 **Token economy rule: format the transcript body with a python script — never have the LLM rewrite or re-emit the transcript.** The LLM decides only: title, category, summary, speaker mapping, light global fixes (recurring proper-noun STT errors as find→replace pairs), and whether to split.
 

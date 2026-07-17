@@ -162,10 +162,16 @@ def main():
                 errors.append(f"relations[]: {end} '{r.get(end)}' not in people[]")
         if r.get("type") not in REL:
             errors.append(f"relations[{r.get('from')}→{r.get('to')}]: type must be one of {sorted(REL)}")
-    reg_names = set()
+    reg_names, registry = set(), []
     reg_path = os.path.join(corpus, "_meta", "speakers.json")
     if os.path.exists(reg_path):
-        reg_names = {e.get("name") for e in json.load(open(reg_path, encoding="utf-8"))}
+        registry = json.load(open(reg_path, encoding="utf-8"))
+        reg_names = {e.get("name") for e in registry}
+    for e in registry:
+        mgr = (e.get("manager") or "").strip()
+        if mgr and mgr not in reg_names:
+            warns.append(f"registry[{e.get('name')}]: manager '{mgr}' not in the registry — "
+                         "조직도 edge will dangle (add them or fix the name)")
     for n in d.get("network", []):
         if not n.get("kind"):
             errors.append(f"network[{n.get('a')}↔{n.get('b')}]: kind is required")

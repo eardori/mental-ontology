@@ -69,8 +69,12 @@ def dossier(name, entry, db, models_of, out_path):
          f"# {name}" + (f" — {entry.get('role')}" if entry.get("role") else "")
          + (f", {entry.get('org')}" if entry.get("org") else ""), ""]
 
-    intro = [x for x in (entry.get("first_met_context"),
-                         f"소개: {entry['intro_by']}" if entry.get("intro_by") else None) if x]
+    intro = [x for x in (
+        f"관계: {entry['relationship']}" if entry.get("relationship") else None,
+        (f"소속: {entry.get('team')}" if entry.get("team") else "")
+        + (f" · 보고: {entry.get('manager')}" if entry.get("manager") else "") or None,
+        entry.get("first_met_context"),
+        f"소개: {entry['intro_by']}" if entry.get("intro_by") else None) if x]
     L += ["## 개요", entry.get("traits", "") or "(성향 메모 없음)"]
     if intro:
         L += ["", "- " + "\n- ".join(intro)]

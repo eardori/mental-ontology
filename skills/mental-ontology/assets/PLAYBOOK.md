@@ -94,6 +94,11 @@ SELECT a AS 소개자, b AS 소개받은사람, note FROM network WHERE kind = '
 SELECT c.from_person, c.to_person, c.text, c.due, m.date, m.title
 FROM commitments c JOIN meetings m ON m.rowid = c.meeting_rowid
 WHERE c.done = 0 ORDER BY CASE WHEN c.due='' THEN 1 ELSE 0 END, c.due;
+
+-- M. 조직도 — 레지스트리에서 파생된 보고 라인 + 팀 구성 (source='조직도')
+SELECT a AS 구성원, b AS 보고상대, note AS 팀 FROM network WHERE kind='보고';
+SELECT team, GROUP_CONCAT(name, ', ') FROM people WHERE team != '' GROUP BY team;
+SELECT name, relationship FROM people WHERE relationship != '';   -- 나와의 관계별
 ```
 
 ### Question patterns → how to answer
@@ -112,6 +117,7 @@ WHERE c.done = 0 ORDER BY CASE WHEN c.due='' THEN 1 ELSE 0 END, c.due;
 | "X를 누가 소개해줬지? / X랑 같이 아는 사람?" | Recipe J (network) + Recipe I (동석) + 레지스트리 `intro_by` |
 | "X 근황/개인적인 거 뭐 있었지?" | `people/X.md` 도시에의 개인 맥락 + 수기 메모 — **△/⛔ 태그 확인**: 사적·언급금지 항목은 "상대가 먼저 꺼낼 때만"이라고 함께 알려줄 것 |
 | "내가 뭐 약속했더라? / X한테 진 빚?" | Recipe K → 기한 지난 것 먼저, 근거 회의와 함께 |
+| "X는 누구 팀이야? / 우리 조직도 보여줘" | Recipe M — 비어 있으면 "조직도 입력해줘" 플로우 제안 |
 
 ---
 

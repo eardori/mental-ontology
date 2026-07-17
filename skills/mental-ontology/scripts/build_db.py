@@ -148,7 +148,8 @@ def main():
     db = sqlite3.connect(db_path)
     c = db.cursor()
     c.executescript("""
-    CREATE TABLE people(name TEXT PRIMARY KEY, type TEXT, role TEXT, org TEXT, summary TEXT, evidence TEXT);
+    CREATE TABLE people(name TEXT PRIMARY KEY, type TEXT, role TEXT, org TEXT, summary TEXT,
+                        evidence TEXT, tier TEXT, relationship TEXT, team TEXT, manager TEXT);
     CREATE TABLE models(id TEXT PRIMARY KEY, category TEXT, title TEXT, desc TEXT, evidence TEXT,
                         quote TEXT, count INTEGER, first_seen TEXT, last_seen TEXT);
     CREATE TABLE model_people(model_id TEXT, person TEXT);
@@ -178,7 +179,7 @@ def main():
     if os.path.exists(op):
         d = json.load(open(op, encoding="utf-8"))
         for p in d.get("people", []):
-            c.execute("INSERT OR REPLACE INTO people VALUES(?,?,?,?,?,?)",
+            c.execute("INSERT OR REPLACE INTO people VALUES(?,?,?,?,?,?,'','','','')",
                       (p.get("name"), p.get("type", "person"), p.get("role", ""),
                        p.get("org", ""), p.get("summary", ""), p.get("evidence", "")))
         holder_pairs, about_pairs = set(), set()
@@ -224,6 +225,31 @@ def main():
     amap, conflicts, n_canon = load_alias_map(corpus, d.get("people", []))
     for alias, canon in sorted(amap.items()):
         c.execute("INSERT INTO person_aliases VALUES(?,?)", (canon, alias))
+
+    # --- registry (speakers.json) → people fields + org chart as 보고 edges ---
+    net_seen = {(n.get("a"), n.get("b"), n.get("kind")) for n in d.get("network", [])}
+    reg_path = os.path.join(corpus, "_meta", "speakers.json")
+    if os.path.exists(reg_path):
+        try:
+            registry = json.load(open(reg_path, encoding="utf-8"))
+        except Exception:
+            registry = []
+        for e in registry:
+            name = e.get("name")
+            if not name:
+                continue
+            c.execute("""INSERT INTO people VALUES(?,?,?,?,?,?,?,?,?,?)
+                         ON CONFLICT(name) DO UPDATE SET tier=excluded.tier,
+                           relationship=excluded.relationship, team=excluded.team,
+                           manager=excluded.manager""",
+                      (name, "person", e.get("role", ""), e.get("org", ""), "", "",
+                       e.get("tier", "core"), e.get("relationship", ""),
+                       e.get("team", ""), e.get("manager", "")))
+            mgr = (e.get("manager") or "").strip()
+            if mgr and (name, mgr, "보고") not in net_seen:
+                c.execute("INSERT INTO network VALUES(?,?,?,?,?,?)",
+                          (name, mgr, "보고", "", e.get("team", ""), "조직도"))
+                net_seen.add((name, mgr, "보고"))
 
     # --- transcripts ---
     n_utt = 0

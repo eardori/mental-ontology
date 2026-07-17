@@ -70,7 +70,8 @@ SPEAKERS = [
      "personal": [{"date": "2026-05-20", "note": "10월 마라톤 준비 중", "use": "사적"},
                   {"date": "2026-05-21", "note": "가족 건강 이슈 언급", "use": "언급금지"}]},
     {"name": "이서연", "role": "CPO", "org": "Acme", "aliases": ["서연님"],
-     "traits": "", "meetings": []},
+     "traits": "", "meetings": [], "relationship": "팀원",
+     "team": "제품본부", "manager": "정우진"},
     {"name": "박도현", "role": "CFO", "org": "Acme", "aliases": [],
      "traits": "", "meetings": []},
 ]
@@ -180,6 +181,12 @@ def test_pipeline_v2(tmp):
           got == [(0, "정우진", "이서연", "2026-05-27"), (1, "이서연", "정우진", "")], str(got))
     got = q("SELECT status, owner FROM bets")
     check("strategy register status/owner in DB", got == [("진행중", "정우진")], str(got))
+    got = q("SELECT a, b, note FROM network WHERE kind='보고' AND source='조직도'")
+    check("org chart derived from registry into network (이서연→정우진 보고)",
+          got == [("이서연", "정우진", "제품본부")], str(got))
+    got = q("SELECT tier, relationship, team FROM people WHERE name='이서연'")
+    check("registry fields merged into people table",
+          got == [("core", "팀원", "제품본부")], str(got))
     got = q("SELECT speaker FROM utterances WHERE text LIKE '위키링크 화자%'")
     check("wikilink-wrapped speaker label resolves ([[정우진]] → 정우진)",
           got == [("정우진",)], str(got))
@@ -200,8 +207,9 @@ def test_pipeline_v2(tmp):
     check("[ts - ts] range parses", got == [("00:01",)], str(got))
     got = q("SELECT COUNT(*) FROM model_about WHERE entity='넥스트라'")
     check("model_about populated", got[0][0] == 1, str(got))
-    got = q("SELECT kind FROM network")
-    check("network table populated", got == [("소개",)], str(got))
+    got = sorted(x[0] for x in q("SELECT kind FROM network"))
+    check("network table populated (소개 from ontology + derived 보고)",
+          got == ["보고", "소개"], str(got))
     got = q("""SELECT pm.src FROM person_meetings pm JOIN meetings m
                ON m.rowid=pm.meeting_rowid
                WHERE pm.person='정우진' AND m.title='통화 선지급'""")
@@ -244,6 +252,9 @@ def test_dossiers(tmp):
     run("build_dossiers.py", root)
     check("manual notes survive regeneration",
           "마라톤 완주 축하 문자 보낼 것" in dp.read_text(encoding="utf-8"))
+    t2 = (root / "people" / "이서연.md").read_text(encoding="utf-8")
+    check("dossier shows relationship + org line (관계·소속·보고)",
+          "관계: 팀원" in t2 and "소속: 제품본부 · 보고: 정우진" in t2, t2[:400])
     idx = (root / "people" / "INDEX.md").read_text(encoding="utf-8")
     check("INDEX lists core tier", "Core" in idx and "정우진" in idx, idx[:300])
     check("INDEX auto-collects contacts (Naomi Park, Mina)",
