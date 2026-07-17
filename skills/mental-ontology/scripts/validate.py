@@ -44,18 +44,35 @@ def verify_quotes(c, models, fts_on):
             continue
         checked += 1
         frags = [f.strip() for f in re.split(r'\.{2,}|…', quote) if len(f.strip()) >= 6] or [quote]
-        toks = sorted(re.findall(r'[가-힣A-Za-z0-9]{2,}', quote), key=len, reverse=True)[:3]
-        cands = []
-        if toks and fts_on:
+        # rank candidate-search tokens by SELECTIVITY — common tokens flood the
+        # candidate cap and hide the true match (recall bug)
+        toks = sorted(set(re.findall(r'[가-힣A-Za-z0-9]{2,}', quote)), key=len, reverse=True)[:6]
+        scored = []
+        for t in toks:
             try:
-                q = " OR ".join(f'"{t}"' for t in toks)
-                cands = [r[0] for r in c.execute(
-                    "SELECT text FROM utterances_fts WHERE utterances_fts MATCH ? LIMIT 400", (q,))]
+                if fts_on:
+                    n = c.execute("SELECT COUNT(*) FROM utterances_fts WHERE utterances_fts "
+                                  "MATCH ?", (f'"{t}"',)).fetchone()[0]
+                else:
+                    n = c.execute("SELECT COUNT(*) FROM utterances WHERE text LIKE ?",
+                                  (f"%{t}%",)).fetchone()[0]
             except sqlite3.OperationalError:
-                cands = []
-        if not cands and toks:
-            cands = [r[0] for r in c.execute(
-                "SELECT text FROM utterances WHERE text LIKE ? LIMIT 400", (f"%{toks[0]}%",))]
+                continue
+            if n:
+                scored.append((n, t))
+        scored.sort()
+        cands = []
+        for _n, t in scored[:2]:  # two most selective tokens
+            try:
+                if fts_on:
+                    cands += [r[0] for r in c.execute(
+                        "SELECT text FROM utterances_fts WHERE utterances_fts MATCH ? LIMIT 400",
+                        (f'"{t}"',))]
+                else:
+                    cands += [r[0] for r in c.execute(
+                        "SELECT text FROM utterances WHERE text LIKE ? LIMIT 400", (f"%{t}%",))]
+            except sqlite3.OperationalError:
+                pass
         best = 0.0
         nfrags = [_norm_text(f) for f in frags]
         for cand in cands:
