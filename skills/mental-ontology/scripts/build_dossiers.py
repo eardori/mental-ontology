@@ -44,8 +44,9 @@ def dossier(name, entry, db, models_of, out_path):
     mts = q("""SELECT m.date, m.title, m.category, m.path FROM person_meetings pm
                JOIN meetings m ON m.rowid = pm.meeting_rowid
                WHERE pm.person = ? ORDER BY m.date DESC""", name)
-    first = mts[-1][0] if mts else ""
-    last = mts[0][0] if mts else ""
+    dates = [d for d, *_ in mts if d]
+    first = min(dates) if dates else ""
+    last = max(dates) if dates else ""
     co = q("""SELECT p2.person, COUNT(DISTINCT p2.meeting_rowid) n FROM person_meetings p1
               JOIN person_meetings p2 ON p2.meeting_rowid = p1.meeting_rowid
               WHERE p1.person = ? AND p2.person != ? GROUP BY p2.person

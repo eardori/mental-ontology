@@ -120,6 +120,21 @@ def resolve(raw, amap):
         return raw
     return amap.get(r.lower(), raw)
 
+# names in older files may carry junk wrappers ([[X]], quotes, \u-escapes) and role-words
+PART_STOP = {"대표", "대표님", "담당자", "상담원", "직원", "참석자", "발신자", "수신자", "고객", "기타"}
+
+def strip_wrappers(s):
+    """'[[오현석]]' / '[오현석]' / \"'오현석'\" / '\\uc624\\ud604\\uc11d' → 오현석"""
+    s = re.sub(r'\\u([0-9a-fA-F]{4})', lambda m: chr(int(m.group(1), 16)), str(s))
+    return norm(re.sub(r"^[\[\s'\"]+|[\]\s'\"]+$", "", s))
+
+def clean_participant(s):
+    """strip wrappers; generic labels, role-words, single letters → '' (not a person)"""
+    s = strip_wrappers(s)
+    if not s or len(s) < 2 or GENERIC.match(s) or s in PART_STOP:
+        return ""
+    return s
+
 def main():
     corpus = os.path.abspath(sys.argv[1]) if len(sys.argv) > 1 else os.getcwd()
     onto_dir = os.path.join(corpus, "_ontology")
@@ -237,17 +252,18 @@ def main():
         # carry no speaker labels — e.g. phone calls — via frontmatter participants)
         pm = set()
         for part in (parts if isinstance(parts, list) else [parts]):
-            if part and str(part).strip():
-                pm.add((resolve(str(part), amap), "participant"))
+            cleaned = clean_participant(part) if part else ""
+            if cleaned:
+                pm.add((resolve(cleaned, amap), "participant"))
         file_utt = 0
         pending, buf = None, []  # header with no same-line text: body follows on next lines
 
         def emit(raw, ts, text):
             nonlocal n_utt, file_utt
-            speaker = resolve(raw, amap)
+            speaker = resolve(strip_wrappers(raw), amap) if raw.strip() else ""
             kind = classify(raw, speaker)
             spk_stats[kind] += 1
-            if kind in ("canonical", "raw-name"):
+            if kind in ("canonical", "raw-name") and clean_participant(speaker):
                 pm.add((speaker, "speaker"))
             c.execute("INSERT INTO utterances VALUES(?,?,?,?,?)", (mid, speaker, raw, ts, text))
             n_utt += 1

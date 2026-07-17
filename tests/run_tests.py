@@ -137,6 +137,13 @@ def build_corpus_v2(root):
         make_transcript(root, f"2026-05-25_긴녹음_part{n}.md", f"긴 녹음 part{n}",
             "2026-05-25", "acme-0525", "**[정우진] (00:01)** 파트 테스트.",
             extra=f'part: "{n}/2"\n')
+    # polluted participants: wikilink wrapper, quoted alias, \u-escapes, role-word, letter
+    # + wikilink-wrapped SPEAKER label in the transcript body
+    make_transcript(root, "2026-05-26_오염된-참석자.md", "오염된 참석자", "2026-05-26",
+        "acme-0526",
+        "**[정우진] (00:01)** 참석자 정제 테스트.\n"
+        "**[[정우진]]** (00:05) 위키링크 화자 라벨.",
+        parts="[[정우진]], '서연님', \\uc774\\uc11c\\uc5f0, 대표, A")
     write(root / "_ontology" / "objects.json", json.dumps(objects_v2(
         "transcripts/2026/2026-05/2026-05-20_전략회의.md",
         "transcripts/2026/2026-05/2026-05-21_통화-선지급.md"), ensure_ascii=False))
@@ -157,8 +164,15 @@ def test_pipeline_v2(tmp):
 
     db = sqlite3.connect(root / "_ontology" / "ontology.db")
     q = lambda s, *a: db.execute(s, a).fetchall()
-    check("utterance count == 17", q("SELECT COUNT(*) FROM utterances")[0][0] == 17,
+    check("utterance count == 19", q("SELECT COUNT(*) FROM utterances")[0][0] == 19,
           str(q("SELECT COUNT(*) FROM utterances")))
+    got = q("SELECT speaker FROM utterances WHERE text LIKE '위키링크 화자%'")
+    check("wikilink-wrapped speaker label resolves ([[정우진]] → 정우진)",
+          got == [("정우진",)], str(got))
+    got = sorted(x[0] for x in q("""SELECT DISTINCT pm.person FROM person_meetings pm
+        JOIN meetings m ON m.rowid=pm.meeting_rowid WHERE m.title='오염된 참석자'"""))
+    check("polluted participants cleaned ([[..]]/quotes/\\u-escape → canonical; 대표·A dropped)",
+          got == ["이서연", "정우진"], str(got))
     for raw in ("우진님", "James(정우진)"):
         got = q("SELECT DISTINCT speaker FROM utterances WHERE speaker_raw=?", raw)
         check(f"alias '{raw}' resolves to 정우진", got == [("정우진",)], str(got))
