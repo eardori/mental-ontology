@@ -18,7 +18,7 @@
 | `INSTALL.md` | Claude가 직접 실행하는 설치 가이드 (한 줄 요청으로 설치) |
 | `skills/.../assets/PLAYBOOK.md` | **질문·전략 워크북** — SQL 레시피 + 사업구상/전략 워크플로우 5종 |
 | `skills/.../assets/viewer.html` | 시각화 뷰어 — `objects.json` 더블클릭/드래그로 열림 (서버·인터넷 불필요) |
-| `skills/.../scripts/` | `build_db.py`(SQLite DB + 화자 별칭 조인 + 접촉 기록) · `build_dossiers.py`(인물 도시에) · `validate.py`(무결성·정직성·커버리지 검증) · `build_index.py`(인덱스) · `whisper_transcribe.py`(로컬 전사) · `migrate_objects.py`(v1→v2 스키마 승격) |
+| `skills/.../scripts/` | `build_db.py`(SQLite DB + 화자 별칭 조인 + 접촉 기록) · `build_dossiers.py`(인물 도시에) · `validate.py`(무결성·정직성·인용 접지 검증) · `prepare_synthesis.py`+`merge_ontology.py`(배치 재추출 파이프라인) · `purge_person.py`(인물 일괄 삭제/익명화) · `build_index.py` · `whisper_transcribe.py` · `migrate_objects.py`(v1→v2) |
 | `examples/sample-objects.json` | 완성 예시(가상 Acme) — 뷰어로 바로 열어 결과 형태 확인 |
 | `tests/run_tests.py` | 자체 테스트 스위트 — 가상 데이터로 파이프라인 전체 검증 (`python3 tests/run_tests.py`) |
 

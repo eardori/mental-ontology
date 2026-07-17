@@ -34,7 +34,7 @@ git clone https://github.com/eardori/mental-ontology.git /tmp/mental-ontology-in
 ```bash
 mkdir -p ~/.claude/skills
 cp -R <repo>/skills/mental-ontology ~/.claude/skills/mental-ontology
-ls ~/.claude/skills/mental-ontology   # SKILL.md, assets/, scripts/ 확인
+ls ~/.claude/skills/mental-ontology   # SKILL.md, stages/, assets/, scripts/ 확인
 ```
 
 이미 존재하면 사용자에게 덮어쓸지 확인 후 진행. / If it already exists, ask the user before overwriting.

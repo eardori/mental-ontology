@@ -340,12 +340,111 @@ def test_migration_v1_to_v2(tmp):
     rc, out = run("validate.py", root)
     check("validate passes on migrated corpus", rc == 0, out)
 
+def test_batch_pipeline(tmp):
+    print("\n[4] prepare_synthesis + merge_ontology — batch re-extraction pipeline")
+    root = tmp / "corpus_v2"
+    W = root / "_ontology" / "_work" / "batch-test"
+    W.mkdir(parents=True)
+    # fake extraction output: one restating instance, one new belief, junk holder,
+    # a tension, a self-org network fact and a real one
+    (W / "extract-b00.json").write_text(json.dumps({"batch": "b00", "meetings": [{
+        "source_id": "acme-9001", "date": "2026-06-01", "title": "6월 전략회의",
+        "instances": [
+            {"holder": "정우진", "title": "완성도보다 학습 속도가 먼저다", "category": "전략",
+             "quote": "일단 던지고 배운다", "evidence": "high", "about": []},
+            {"holder": "정우진", "title": "채용은 문화 적합이 먼저다", "category": "조직",
+             "quote": "", "evidence": "mid", "about": []},
+            {"holder": "Speaker 3", "title": "버려질 인스턴스", "category": "기타",
+             "quote": "", "evidence": "low", "about": []}],
+        "tensions": [{"from": "정우진", "to": "이서연", "topic": "채용 속도",
+                      "note": "속도 vs 검증", "direction": "one-way"}],
+        "network_facts": [{"a": "Acme", "b": "그로우캐피탈", "kind": "투자", "note": "자사 엣지 — 드롭돼야 함"},
+                          {"a": "박도현", "b": "제임스(정우진)", "kind": "협업", "note": "변형 이름 — 정규화돼야 함"}],
+        "timeline_signal": "채용 확대 국면 진입"}]}, ensure_ascii=False), encoding="utf-8")
+    (W / "batches.json").write_text(json.dumps([{"id": "b00", "sids": ["acme-9001"]}]), encoding="utf-8")
+
+    rc, out = run("prepare_synthesis.py", root, W)
+    check("prepare_synthesis exits 0", rc == 0, out)
+    check("junk holder dropped and reported", "dropped" in out and "Speaker 3" in out, out)
+    keys = json.loads((W / "synth_keys.json").read_text(encoding="utf-8"))
+    check("only instance-bearing task needs an agent", keys == ["person-정우진"], str(keys))
+    task = json.loads((W / "synth-task-person-정우진.json").read_text(encoding="utf-8"))
+    check("task carries existing models + new instances",
+          len(task["existing_models"]) == 2 and len(task["instances"]) == 2, str(task)[:200])
+
+    # fake synthesis output: update existing model + one new + one id COLLIDING with
+    # another person's existing model (value-first belongs to 이서연)
+    upd = next(m for m in task["existing_models"] if m["id"] == "speed-first")
+    upd = {**upd, "count": upd.get("count", 1) + 1, "last_seen": "2026-06-01"}
+    (W / "synth-person-정우진.json").write_text(json.dumps({"key": "person-정우진", "models": [
+        m if m["id"] != "speed-first" else upd for m in task["existing_models"]] + [
+        {"id": "hiring-culture-fit-first", "category": "조직", "title": "채용은 문화 적합이 먼저다",
+         "evidence": "mid", "holders": ["정우진"], "about": [], "count": 1,
+         "first_seen": "2026-06-01", "last_seen": "2026-06-01"},
+        {"id": "value-first", "category": "제품", "title": "충돌 테스트용 중복 id",
+         "evidence": "mid", "holders": ["정우진"], "about": [], "count": 1}],
+        "evolution": [{"person": "정우진", "date": "2026-06-01", "note": "채용 방침 전환"}],
+        "summary": "test"}, ensure_ascii=False), encoding="utf-8")
+
+    rc, out = run("merge_ontology.py", root, W)
+    check("merge dry-run exits 0 without writing", rc == 0 and "DRY RUN" in out, out)
+    rc, out = run("merge_ontology.py", root, W, "--apply")
+    check("merge apply exits 0 with backup", rc == 0 and "objects_backup" in out, out)
+    check("id collision renamed and reported", "value-first → value-first-2" in out, out)
+    d = json.loads((root / "_ontology" / "objects.json").read_text(encoding="utf-8"))
+    m = {x["id"]: x for x in d["models"]}
+    check("existing model updated in place (count·last_seen)",
+          m["speed-first"]["count"] == upd["count"]
+          and m["speed-first"]["last_seen"] == "2026-06-01", str(m["speed-first"]))
+    check("new model merged", "hiring-culture-fit-first" in m, "")
+    check("이서연's untouched model carried over", "value-first" in m
+          and m["value-first"]["holders"] == ["이서연"], "")
+    check("one-way tension merged into relations",
+          any(r.get("topic") == "채용 속도" and r.get("direction") == "one-way"
+              for r in d["relations"]), str(d["relations"][-1]))
+    net = {(n["a"], n["b"]) for n in d.get("network", [])}
+    check("self-org network edge dropped, variant name normalized",
+          ("Acme", "그로우캐피탈") not in net and ("박도현", "정우진") in net, str(net))
+    check("processed_source_ids updated",
+          "acme-9001" in d["meta"]["processed_source_ids"], "")
+    check("people[].models rebuilt with new model",
+          "hiring-culture-fit-first" in next(p for p in d["people"] if p["name"] == "정우진")["models"], "")
+    rc, out = run("validate.py", root)
+    check("validate passes after batch merge", rc == 0, out)
+
+def test_purge_person(tmp):
+    print("\n[5] purge_person — right-to-be-forgotten")
+    root, pp = tmp / "corpus_v2", tmp / "corpus_purge"
+    shutil.copytree(root, pp)
+    rc, out = run("purge_person.py", pp, "--name", "이서연")
+    check("purge dry-run exits 0 and lists files", rc == 0 and "DRY RUN" in out
+          and "speakers.json" in out, out)
+    assert "APPLIED" not in out
+    rc, out = run("purge_person.py", pp, "--name", "이서연", "--apply")
+    check("purge apply exits 0 with backup", rc == 0 and "purge-backup" in out, out)
+    reg = json.loads((pp / "_meta" / "speakers.json").read_text(encoding="utf-8"))
+    check("registry entry removed", all(e["name"] != "이서연" for e in reg), "")
+    d = json.loads((pp / "_ontology" / "objects.json").read_text(encoding="utf-8"))
+    check("person removed from ontology", all(p["name"] != "이서연" for p in d["people"]), "")
+    ids = {m["id"] for m in d["models"]}
+    check("solely-held models removed", "value-first" not in ids, str(sorted(ids)))
+    check("relations involving person removed",
+          all("이서연" not in (r.get("from"), r.get("to")) for r in d.get("relations", [])), "")
+    t = (pp / "transcripts" / "2026" / "2026-05" / "2026-05-20_전략회의.md").read_text(encoding="utf-8")
+    check("transcript mentions anonymized (alias 서연님 included)",
+          "이서연" not in t and "서연님" not in t and "[삭제된 인물]" in t, t[:300])
+    check("backup preserves originals",
+          (pp / "_ontology" / "_work").glob("purge-backup-*") is not None
+          and "이서연" in next((pp / "_ontology" / "_work").glob("purge-backup-*/_meta/speakers.json")).read_text(encoding="utf-8"), "")
+
 def main():
     with tempfile.TemporaryDirectory(prefix="mental-ontology-tests-") as td:
         tmp = Path(td)
         test_pipeline_v2(tmp)
         test_dossiers(tmp)
         test_validate_catches_errors(tmp)
+        test_batch_pipeline(tmp)
+        test_purge_person(tmp)
         test_migration_v1_to_v2(tmp)
     print(f"\n{'FAIL' if FAILURES else 'PASS'}: {PASS} passed, {len(FAILURES)} failed"
           + (f" — {FAILURES}" if FAILURES else ""))

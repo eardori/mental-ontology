@@ -27,10 +27,9 @@ Plain markdown — works standalone or inside an Obsidian vault.
 │   ├── ontology.db               # SQLite DB (Stage 7 — rebuilt, don't hand-edit)
 │   ├── index.html                # self-contained viewer (embedded data)
 │   ├── REPORT.md                 # narrative report
-│   ├── profiles/
-│   │   └── PROFILE-<이름>.md      # per-person profile cards
-│   └── _work/                    # intermediate files ONLY (per-meeting extracts,
-│       └── <date-label>/         #  aggregates) — deletable after a validated build
+│   └── _work/                    # intermediate files ONLY — batch-pipeline workdirs
+│       └── <date-label>/         #  (extract/synth files) + purge-backup-<이름>/;
+│                                 #  deletable after a validated build / final purge
 └── _strategy/                    # Stage 9 deliverables (OPPORTUNITIES-*, STRATEGY-*, …)
 ```
 
