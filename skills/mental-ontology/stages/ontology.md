@@ -95,3 +95,24 @@ self-org edge drops, pool dedupe, timeline capping, `processed_source_ids`.
 Then: `validate.py` (quote grounding + integrity) → `build_db.py` →
 `build_dossiers.py` → re-embed the viewer. Report the before/after numbers honestly
 (models, grounding rate, coverage) — including what was downgraded or dropped.
+
+## v3 — shadows, common ground, and honesty about sources
+
+Extract these alongside models (schema_version 3):
+
+1. **evidence_type** (every model, required): `direct` (the person said it themselves) /
+   `hearsay` (someone else described their thinking — cap evidence at `mid`, prefix desc with
+   the interpreter: "X의 해석:") / `reference` (mentioned only as example — cap at `low`).
+   Never let a hearsay item read as the person's own belief.
+2. **traps** (top-level array): a trap is the shadow a model casts — the recurring cost it
+   creates. `{who, model_id?, desc, state, evidence_type, source}` with state ∈
+   미해결/자각 중/해소 중/화두 수령/해소됨. Only record traps grounded in the transcript:
+   self-admission, a concrete incident, or a direct challenge by another speaker.
+   "자각 중" requires the person's own acknowledgement.
+3. **conflict_axes** (top-level array): when two people share an explicit axiom but split
+   symmetrically on execution, record `{a, b, axis, shared_axiom, a_side, b_side, note}`
+   in addition to (or instead of) a bare tension. The shared axiom is the most actionable
+   part of a conflict — never lose it.
+4. **playbook** (per person, when a pattern repeats ≥2×): 1–3 sentences of operating
+   instruction — how to work with / persuade this person. Imperative form ("~하라"),
+   not personality description.

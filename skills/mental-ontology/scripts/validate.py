@@ -148,6 +148,31 @@ def main():
             errors.append(f"models[{i}]: evidence must be one of {sorted(EV)}")
         if ver >= 2 and "holders" not in m:
             errors.append(f"models[{i}]: schema v2 requires holders[] (who holds the belief)")
+        # v3 checks
+        et = m.get("evidence_type")
+        if et is not None and et not in ("direct", "hearsay", "reference"):
+            errors.append(f"models[{i}]: evidence_type must be direct/hearsay/reference")
+        if et == "hearsay" and m.get("evidence") == "high":
+            warns.append(f"models[{i}]: hearsay evidence_type should cap evidence at mid")
+        if et == "reference" and m.get("evidence") in ("high", "mid"):
+            warns.append(f"models[{i}]: reference evidence_type should cap evidence at low")
+        tr = m.get("trap")
+        if tr is not None and not (isinstance(tr, dict) and tr.get("desc")):
+            errors.append(f"models[{i}]: trap must be an object with desc")
+    names = {p.get("name") for p in people}
+    for x in d.get("conflict_axes", []) or []:
+        for side in ("a", "b"):
+            if x.get(side) and x[side] not in names:
+                warns.append(f"conflict_axes: unknown person '{x.get(side)}'")
+        if not x.get("axis"):
+            errors.append("conflict_axes: entry without axis")
+    for t in d.get("traps", []) or []:
+        if not t.get("who") or not t.get("desc"):
+            errors.append("traps: entry needs who + desc")
+        elif t["who"] not in names:
+            warns.append(f"traps: unknown person '{t.get('who')}'")
+        if t.get("model_id") and t["model_id"] not in mids:
+            errors.append(f"traps: model_id '{t['model_id']}' not in models[]")
 
     # --- integrity ---
     for m in models:

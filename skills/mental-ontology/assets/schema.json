@@ -2,35 +2,93 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Mental Model Ontology — objects.json (schema v2)",
   "type": "object",
-  "required": ["meta", "people", "models"],
+  "required": [
+    "meta",
+    "people",
+    "models"
+  ],
   "properties": {
     "meta": {
       "type": "object",
-      "required": ["title", "org"],
+      "required": [
+        "title",
+        "org"
+      ],
       "properties": {
-        "schema_version": { "type": "integer", "const": 2, "description": "v2: people.type + models.holders/about + meeting provenance. 없으면 v1 레거시 — migrate_objects.py 로 승격" },
-        "title": { "type": "string" },
-        "org": { "type": "string" },
-        "subtitle": { "type": "string" },
-        "date_range": { "type": "string" },
-        "sensitivity": { "type": "string", "enum": ["L1", "L2", "L3"] },
-        "confidence_note": { "type": "string" },
-        "sources": { "type": "array", "items": { "type": "string" } },
-        "processed_source_ids": { "type": "array", "items": { "type": "string" }, "description": "온톨로지에 반영된 트랜스크립트의 source_id 전체 — 증분 병합의 기준" }
+        "schema_version": {
+          "type": "integer",
+          "const": 2,
+          "description": "v2: people.type + models.holders/about + meeting provenance. 없으면 v1 레거시 — migrate_objects.py 로 승격"
+        },
+        "title": {
+          "type": "string"
+        },
+        "org": {
+          "type": "string"
+        },
+        "subtitle": {
+          "type": "string"
+        },
+        "date_range": {
+          "type": "string"
+        },
+        "sensitivity": {
+          "type": "string",
+          "enum": [
+            "L1",
+            "L2",
+            "L3"
+          ]
+        },
+        "confidence_note": {
+          "type": "string"
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "processed_source_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "온톨로지에 반영된 트랜스크립트의 source_id 전체 — 증분 병합의 기준"
+        }
       }
     },
     "meetings": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "date"],
+        "required": [
+          "id",
+          "date"
+        ],
         "properties": {
-          "id": { "type": "string" },
-          "date": { "type": "string", "description": "YYYY-MM-DD" },
-          "title": { "type": "string" },
-          "source_id": { "type": "string", "description": "프로비넌스: 트랜스크립트 frontmatter의 source_id (신규 분석은 필수)" },
-          "path": { "type": "string", "description": "프로비넌스: 코퍼스 기준 상대 경로 (신규 분석은 필수)" },
-          "batch": { "type": "string", "description": "분석 배치 라벨 (선택)" }
+          "id": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "description": "YYYY-MM-DD"
+          },
+          "title": {
+            "type": "string"
+          },
+          "source_id": {
+            "type": "string",
+            "description": "프로비넌스: 트랜스크립트 frontmatter의 source_id (신규 분석은 필수)"
+          },
+          "path": {
+            "type": "string",
+            "description": "프로비넌스: 코퍼스 기준 상대 경로 (신규 분석은 필수)"
+          },
+          "batch": {
+            "type": "string",
+            "description": "분석 배치 라벨 (선택)"
+          }
         }
       }
     },
@@ -39,22 +97,72 @@
       "description": "인물 + 대상 엔티티(파트너/경쟁사/고객 조직). v2에서 type 필수.",
       "items": {
         "type": "object",
-        "required": ["name", "type", "summary", "evidence", "models"],
+        "required": [
+          "name",
+          "type",
+          "summary",
+          "evidence",
+          "models"
+        ],
         "properties": {
-          "name": { "type": "string", "description": "canonical 이름 — person은 _meta/speakers.json 의 name과 일치해야 DB 조인이 성립" },
-          "type": { "type": "string", "enum": ["person", "org"], "description": "person=발화 가능한 실제 인물, org=믿음의 '대상'이 되는 조직·외부 엔티티" },
-          "role": { "type": "string" },
-          "org": { "type": "string", "description": "소속 (person일 때)" },
-          "summary": { "type": "string" },
-          "evidence": { "type": "string", "enum": ["high", "mid", "low"] },
-          "models": { "type": "array", "items": { "type": "string" }, "description": "이 인물이 '보유(hold)'한 모델 id — 각 id는 models[].id 에 존재하고, 그 모델의 holders 에 이 인물이 포함돼야 함. org는 보통 빈 배열(그 조직에 '대한' 모델은 models[].about 으로 조회)" },
+          "name": {
+            "type": "string",
+            "description": "canonical 이름 — person은 _meta/speakers.json 의 name과 일치해야 DB 조인이 성립"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "person",
+              "org"
+            ],
+            "description": "person=발화 가능한 실제 인물, org=믿음의 '대상'이 되는 조직·외부 엔티티"
+          },
+          "role": {
+            "type": "string"
+          },
+          "org": {
+            "type": "string",
+            "description": "소속 (person일 때)"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "string",
+            "enum": [
+              "high",
+              "mid",
+              "low"
+            ]
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "이 인물이 '보유(hold)'한 모델 id — 각 id는 models[].id 에 존재하고, 그 모델의 holders 에 이 인물이 포함돼야 함. org는 보통 빈 배열(그 조직에 '대한' 모델은 models[].about 으로 조회)"
+          },
           "evolution": {
             "type": "array",
             "items": {
               "type": "object",
-              "required": ["date", "note"],
-              "properties": { "date": { "type": "string" }, "note": { "type": "string" } }
+              "required": [
+                "date",
+                "note"
+              ],
+              "properties": {
+                "date": {
+                  "type": "string"
+                },
+                "note": {
+                  "type": "string"
+                }
+              }
             }
+          },
+          "playbook": {
+            "type": "string",
+            "description": "개입 문법 — 이 사람과 일할 때/설득할 때의 운영 지침 1–3문장 (성격 묘사가 아닌 '~하라' 형태)"
           }
         }
       }
@@ -63,21 +171,117 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "category", "title", "evidence", "holders"],
+        "required": [
+          "id",
+          "category",
+          "title",
+          "evidence",
+          "holders"
+        ],
         "properties": {
-          "id": { "type": "string", "description": "kebab-case 고유 id — 재실행 간 안정적으로 유지(증분 병합 키)" },
-          "category": { "type": "string", "description": "전략|리더십|조직|제품|재무|기술|영업|투자|리스크|기타" },
-          "title": { "type": "string", "description": "한 문장으로 된 믿음/판단 기준" },
-          "desc": { "type": "string" },
-          "evidence": { "type": "string", "enum": ["high", "mid", "low"], "description": "holders 가 전원 org 인 모델(제3자 추정)은 mid 가 상한" },
-          "holders": { "type": "array", "items": { "type": "string" }, "minItems": 1, "description": "이 믿음을 '가진' 주체 — people[].name 참조. 'A가 B에 대해 한 말'의 holder는 A다(B가 아님!)" },
-          "about": { "type": "array", "items": { "type": "string" }, "description": "이 믿음의 '대상' 엔티티 — people[].name 참조 (예: 경쟁사, 파트너)" },
-          "people": { "type": "array", "items": { "type": "string" }, "description": "DEPRECATED (v1) — holders 로 대체됨. 읽기 시 holders 로 취급" },
-          "quote": { "type": "string", "description": "실제 발언 한 줄(있으면) — high 등급의 근거" },
-          "count": { "type": "integer", "description": "등장한 회의 수" },
-          "first_seen": { "type": "string", "description": "YYYY-MM-DD" },
-          "last_seen": { "type": "string", "description": "YYYY-MM-DD" },
-          "related": { "type": "array", "items": { "type": "string" } }
+          "id": {
+            "type": "string",
+            "description": "kebab-case 고유 id — 재실행 간 안정적으로 유지(증분 병합 키)"
+          },
+          "category": {
+            "type": "string",
+            "description": "전략|리더십|조직|제품|재무|기술|영업|투자|리스크|기타"
+          },
+          "title": {
+            "type": "string",
+            "description": "한 문장으로 된 믿음/판단 기준"
+          },
+          "desc": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "string",
+            "enum": [
+              "high",
+              "mid",
+              "low"
+            ],
+            "description": "holders 가 전원 org 인 모델(제3자 추정)은 mid 가 상한"
+          },
+          "holders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "description": "이 믿음을 '가진' 주체 — people[].name 참조. 'A가 B에 대해 한 말'의 holder는 A다(B가 아님!)"
+          },
+          "about": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "이 믿음의 '대상' 엔티티 — people[].name 참조 (예: 경쟁사, 파트너)"
+          },
+          "people": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "DEPRECATED (v1) — holders 로 대체됨. 읽기 시 holders 로 취급"
+          },
+          "quote": {
+            "type": "string",
+            "description": "실제 발언 한 줄(있으면) — high 등급의 근거"
+          },
+          "count": {
+            "type": "integer",
+            "description": "등장한 회의 수"
+          },
+          "first_seen": {
+            "type": "string",
+            "description": "YYYY-MM-DD"
+          },
+          "last_seen": {
+            "type": "string",
+            "description": "YYYY-MM-DD"
+          },
+          "related": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidence_type": {
+            "type": "string",
+            "enum": [
+              "direct",
+              "hearsay",
+              "reference"
+            ],
+            "description": "direct=본인 발화 / hearsay=타인의 전언·해석(등급 상한 mid) / reference=언급·참조만(등급 상한 low). 근거 '성격' 축 — evidence(강도)와 별개"
+          },
+          "trap": {
+            "type": "object",
+            "description": "이 모델이 만들어내는 부작용(함정)",
+            "properties": {
+              "desc": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "미해결",
+                  "자각 중",
+                  "해소 중",
+                  "화두 수령",
+                  "해소됨"
+                ]
+              }
+            }
+          },
+          "influenced_by": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "모델의 유래 — 사람 이름 또는 사건·경험"
+          }
         }
       }
     },
@@ -86,14 +290,42 @@
       "description": "사고의 관계 — 누구의 생각이 누구와 합의/대립/발전하는가",
       "items": {
         "type": "object",
-        "required": ["from", "to", "type"],
+        "required": [
+          "from",
+          "to",
+          "type"
+        ],
         "properties": {
-          "from": { "type": "string", "description": "people[].name 참조 (person 또는 org)" },
-          "to": { "type": "string", "description": "people[].name 참조" },
-          "type": { "type": "string", "enum": ["agree", "tension", "builds-on"] },
-          "direction": { "type": "string", "enum": ["mutual", "one-way"], "description": "one-way = from만 인식하는 비대칭 관계(예: A는 B에게 불만인데 B는 모름) — 관계 관리의 핵심 신호" },
-          "topic": { "type": "string" },
-          "note": { "type": "string" }
+          "from": {
+            "type": "string",
+            "description": "people[].name 참조 (person 또는 org)"
+          },
+          "to": {
+            "type": "string",
+            "description": "people[].name 참조"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "agree",
+              "tension",
+              "builds-on"
+            ]
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "mutual",
+              "one-way"
+            ],
+            "description": "one-way = from만 인식하는 비대칭 관계(예: A는 B에게 불만인데 B는 모름) — 관계 관리의 핵심 신호"
+          },
+          "topic": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          }
         }
       }
     },
@@ -102,14 +334,34 @@
       "description": "사회적 관계 — 소개·협업·투자 등 사람 사이의 실제 연결 (사고의 관계와 별개 축)",
       "items": {
         "type": "object",
-        "required": ["a", "b", "kind"],
+        "required": [
+          "a",
+          "b",
+          "kind"
+        ],
         "properties": {
-          "a": { "type": "string", "description": "인물/조직 이름 — people[] 또는 레지스트리(speakers.json)의 인물" },
-          "b": { "type": "string" },
-          "kind": { "type": "string", "description": "소개|협업|투자|사제|친분|거래|경쟁|기타 — 'A가 B를 소개'는 kind=소개, a=소개한 사람" },
-          "since": { "type": "string", "description": "YYYY-MM-DD (알게 된/시작된 시점)" },
-          "note": { "type": "string" },
-          "source": { "type": "string", "description": "근거 회의 date 또는 meetings[].id" }
+          "a": {
+            "type": "string",
+            "description": "인물/조직 이름 — people[] 또는 레지스트리(speakers.json)의 인물"
+          },
+          "b": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "description": "소개|협업|투자|사제|친분|거래|경쟁|기타 — 'A가 B를 소개'는 kind=소개, a=소개한 사람"
+          },
+          "since": {
+            "type": "string",
+            "description": "YYYY-MM-DD (알게 된/시작된 시점)"
+          },
+          "note": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "description": "근거 회의 date 또는 meetings[].id"
+          }
         }
       }
     },
@@ -118,16 +370,52 @@
       "description": "전략 대장(living register) — 정적 추출물이 아니라 상태를 가진 자산. S1/S2 실행 때마다 갱신",
       "items": {
         "type": "object",
-        "required": ["title"],
+        "required": [
+          "title"
+        ],
         "properties": {
-          "tag": { "type": "string" },
-          "title": { "type": "string" },
-          "desc": { "type": "string" },
-          "status": { "type": "string", "enum": ["검토중", "진행중", "보류", "폐기", "실현"], "description": "생애주기 — 갱신 시 근거 회의를 source에 추가" },
-          "owner": { "type": "string", "description": "이 베팅을 미는 사람 — people[].name 참조" },
-          "date": { "type": "string", "description": "최근 상태 변경일 YYYY-MM-DD" },
-          "source": { "type": "array", "items": { "type": "string" }, "description": "근거 회의 date 또는 meetings[].id 목록" },
-          "related_models": { "type": "array", "items": { "type": "string" }, "description": "이 베팅을 뒷받침/제약하는 models[].id" }
+          "tag": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "desc": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "검토중",
+              "진행중",
+              "보류",
+              "폐기",
+              "실현"
+            ],
+            "description": "생애주기 — 갱신 시 근거 회의를 source에 추가"
+          },
+          "owner": {
+            "type": "string",
+            "description": "이 베팅을 미는 사람 — people[].name 참조"
+          },
+          "date": {
+            "type": "string",
+            "description": "최근 상태 변경일 YYYY-MM-DD"
+          },
+          "source": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "근거 회의 date 또는 meetings[].id 목록"
+          },
+          "related_models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "이 베팅을 뒷받침/제약하는 models[].id"
+          }
         }
       }
     },
@@ -136,14 +424,43 @@
       "description": "전략 대장의 리스크 축 — bets와 동일하게 생애주기 관리",
       "items": {
         "type": "object",
-        "required": ["title"],
+        "required": [
+          "title"
+        ],
         "properties": {
-          "level": { "type": "string", "enum": ["high", "mid", "low"] },
-          "title": { "type": "string" },
-          "desc": { "type": "string" },
-          "status": { "type": "string", "enum": ["관찰중", "완화중", "해소", "현실화"] },
-          "mitigation": { "type": "string", "description": "완화 조치 (있으면)" },
-          "source": { "type": "array", "items": { "type": "string" } }
+          "level": {
+            "type": "string",
+            "enum": [
+              "high",
+              "mid",
+              "low"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "desc": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "관찰중",
+              "완화중",
+              "해소",
+              "현실화"
+            ]
+          },
+          "mitigation": {
+            "type": "string",
+            "description": "완화 조치 (있으면)"
+          },
+          "source": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         }
       }
     },
@@ -151,11 +468,107 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["date", "change"],
+        "required": [
+          "date",
+          "change"
+        ],
         "properties": {
-          "date": { "type": "string" },
-          "meeting": { "type": "string", "description": "meetings[].id 참조" },
-          "change": { "type": "string" }
+          "date": {
+            "type": "string"
+          },
+          "meeting": {
+            "type": "string",
+            "description": "meetings[].id 참조"
+          },
+          "change": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "conflict_axes": {
+      "type": "array",
+      "description": "두 인물이 공유 공리 위에서 실행이 대칭으로 갈리는 축 — tension의 상위 표현 (공통 지반 보존)",
+      "items": {
+        "type": "object",
+        "required": [
+          "a",
+          "b",
+          "axis"
+        ],
+        "properties": {
+          "a": {
+            "type": "string"
+          },
+          "b": {
+            "type": "string"
+          },
+          "axis": {
+            "type": "string"
+          },
+          "shared_axiom": {
+            "type": "string"
+          },
+          "a_side": {
+            "type": "string"
+          },
+          "b_side": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "evidence_type": {
+            "type": "string",
+            "enum": [
+              "direct",
+              "hearsay",
+              "reference"
+            ]
+          }
+        }
+      }
+    },
+    "traps": {
+      "type": "array",
+      "description": "인물 단위 함정 목록 — 본인 자인·구체 사건·직접 지적이 있을 때만 기록",
+      "items": {
+        "type": "object",
+        "required": [
+          "who",
+          "desc"
+        ],
+        "properties": {
+          "who": {
+            "type": "string"
+          },
+          "model_id": {
+            "type": "string"
+          },
+          "desc": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "미해결",
+              "자각 중",
+              "해소 중",
+              "화두 수령",
+              "해소됨"
+            ]
+          },
+          "evidence_type": {
+            "type": "string",
+            "enum": [
+              "direct",
+              "hearsay",
+              "reference"
+            ]
+          },
+          "source": {
+            "type": "string"
+          }
         }
       }
     }
