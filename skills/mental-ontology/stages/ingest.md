@@ -30,7 +30,13 @@ Only for recordings with no Plaud transcript.
 1. **Critical: presigned URLs expire within seconds–minutes.** Call `get_file(file_id)` to obtain `presigned_url`, then **immediately** run the download in the very next tool call. Never batch-fetch URLs first.
 2. Use the bundled script (handles download, validation, and transcription):
    ```bash
-   python3 <skill_dir>/scripts/whisper_transcribe.py --url "<presigned_url>" --id <file_id> --out <corpus>/_whisper [--lang ko]
+   python3 <skill_dir>/scripts/whisper_transcribe.py --url "<presigned_url>" --id <file_id> --out <corpus>/_whisper [--lang auto]
+   ```
+   - **Language**: default `auto` detects from MID-FILE samples (never trust the first 30s —
+     intros/music routinely fool detection and a wrong forced language produces fluent
+     hallucination loops, e.g. an English meeting transcribed as Korean greetings).
+     If the output's `repetition_ratio` > 0.3, re-run with the correct explicit `--lang`.
+   ```bash
    ```
    - It validates the download (≥1MB, not an XML `ExpiredToken` error), picks `mlx_whisper` on Apple Silicon or `openai-whisper` elsewhere, and writes `<corpus>/_whisper/<id>.json` (`{id, text, segments:[{start,text}]}`).
    - If neither whisper package is installed, the script prints install hints (`pip3 install mlx-whisper` on Apple Silicon, else `pip3 install openai-whisper`). Offer to install for the user.
