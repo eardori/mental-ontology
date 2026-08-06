@@ -6,414 +6,2326 @@
   · 스키마: PROMPT.md 참고. objects.json 만 고치면 화면이 다시 생성됩니다.
 -->
 <html lang="ko">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>멘탈모델 온톨로지 뷰어</title>
-<style>
-  :root{
-    --bg:#0c0d10;--card:#16181f;--card2:#1b1e27;--line:#262a35;
-    --tx:#e9ecf2;--tx2:#a2a9b8;--tx3:#6b7280;
-    --hi:#34d17f;--mid:#e6b34a;--lo:#f26157;--acc:#8fd4a8;--amber:#e6b34a;--blue:#6ea8ff;--radius:16px;
-  }
-  *{box-sizing:border-box}
-  html,body{margin:0;padding:0}
-  body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSystemFont,"Pretendard","Apple SD Gothic Neo","Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;line-height:1.55}
-  .wrap{max-width:1180px;margin:0 auto;padding:0 24px}
-  /* top bar */
-  header.top{position:sticky;top:0;z-index:30;background:rgba(12,13,16,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
-  .top .wrap{display:flex;align-items:center;justify-content:space-between;height:56px;gap:12px}
-  .brand{font-size:14px;color:var(--tx2)}.brand b{color:var(--tx)}
-  .loadbtn{font:inherit;font-size:13px;font-weight:700;color:#06231a;background:var(--hi);border:none;padding:9px 16px;border-radius:999px;cursor:pointer}
-  .loadbtn.ghost{color:var(--tx);background:var(--card2);border:1px solid var(--line)}
-  /* sample banner */
-  .banner{background:#221c0d;border-bottom:1px solid #3a2f12;color:#e8cf93;font-size:13px}
-  .banner .wrap{display:flex;align-items:center;justify-content:space-between;height:42px}
-  .banner.hidden{display:none}
-  /* drop overlay */
-  #drop{position:fixed;inset:0;z-index:50;background:rgba(12,13,16,.92);display:none;align-items:center;justify-content:center;border:3px dashed var(--hi)}
-  #drop.on{display:flex}
-  #drop .msg{font-size:22px;font-weight:800;color:var(--hi)}
-  /* hero */
-  .hero{padding:48px 0 36px;border-bottom:1px solid var(--line)}
-  .kicker{color:var(--amber);font-size:12.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin-bottom:14px}
-  .hero h1{font-size:clamp(30px,4.6vw,52px);line-height:1.1;margin:0 0 16px;font-weight:800;letter-spacing:-.02em}
-  .hero .sub{color:var(--tx2);font-size:16px;max-width:660px}
-  .stats{display:flex;gap:12px;flex-wrap:wrap;margin-top:26px}
-  .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 22px;min-width:120px}
-  .stat .num{font-size:30px;font-weight:800}.stat .lab{color:var(--tx2);font-size:12.5px}
-  .navbtns{display:flex;gap:8px;flex-wrap:wrap;margin-top:24px}
-  .navbtns button{font:inherit;font-size:13.5px;font-weight:600;color:var(--tx);background:var(--card2);border:1px solid var(--line);padding:9px 16px;border-radius:999px;cursor:pointer}
-  .navbtns button:hover{background:#232734}
-  /* sections */
-  section{padding:52px 0;border-bottom:1px solid var(--line)}
-  section.hidden{display:none}
-  .sec-head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:28px;flex-wrap:wrap}
-  .sec-head h2{font-size:clamp(26px,3.6vw,38px);margin:0;font-weight:800;letter-spacing:-.02em}
-  .sec-head p{color:var(--tx2);font-size:14px;max-width:440px;margin:0;text-align:right}
-  @media(max-width:640px){.sec-head p{text-align:left}}
-  .ev{font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:999px;white-space:nowrap}
-  .ev.high{color:#0b2a1c;background:var(--hi)}.ev.mid{color:#2c2205;background:var(--mid)}.ev.low{color:#2c0f0c;background:var(--lo)}
-  .grid{display:grid;gap:16px}
-  .g3{grid-template-columns:repeat(3,1fr)}
-  @media(max-width:900px){.g3{grid-template-columns:repeat(2,1fr)}}
-  @media(max-width:640px){.g3{grid-template-columns:1fr}}
-  /* people */
-  .pcard{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:22px}
-  .pcard .ph{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
-  .pcard h3{margin:0;font-size:21px;font-weight:800}.pcard .role{color:var(--amber);font-size:13px;font-weight:600;margin-top:3px}
-  .pcard .psum{color:var(--tx2);font-size:13.5px;margin:13px 0 15px}
-  .pcard .lbl{color:var(--tx3);font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin:0 0 8px}
-  .pcard ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
-  .pcard li{font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:8px}
-  .dot{width:6px;height:6px;border-radius:50%;background:var(--acc);flex:none}
-  .evo{margin-top:14px;border-top:1px dashed var(--line);padding-top:12px}
-  .evo .row{font-size:12px;color:var(--tx2);display:flex;gap:8px;margin-bottom:4px}
-  .evo .d{color:var(--amber);font-weight:700;flex:none}
-  /* filters + models */
-  .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px}
-  .filters button{font:inherit;font-size:13px;font-weight:600;color:var(--tx2);background:transparent;border:1px solid var(--line);padding:8px 15px;border-radius:999px;cursor:pointer}
-  .filters button:hover{color:var(--tx);border-color:#3a4150}
-  .filters button.on{background:var(--amber);color:#2c2205;border-color:var(--amber)}
-  .mcard{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px;display:flex;flex-direction:column}
-  .mcard .mh{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
-  .cat{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--amber)}
-  .mcard h4{margin:0 0 9px;font-size:17px;font-weight:800;line-height:1.3}
-  .mcard .mdesc{color:var(--tx2);font-size:13px;margin:0 0 12px}
-  .quote{border-left:2px solid var(--hi);padding:7px 0 7px 11px;margin:0 0 12px;color:var(--tx);font-size:12px;font-style:italic;background:linear-gradient(90deg,rgba(52,209,127,.06),transparent)}
-  .ptags{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto}
-  .ptag{font-size:11.5px;font-weight:700;color:var(--tx);background:var(--card2);border:1px solid var(--line);padding:4px 9px;border-radius:8px}
-  .ptag.about{color:var(--amber);border-style:dashed}
-  .orgbadge{font-size:10.5px;font-weight:800;color:var(--amber);border:1px dashed var(--amber);padding:1px 7px;border-radius:999px;vertical-align:middle}
-  .orgcard{border-style:dashed}
-  .pcard .who{color:var(--tx3);font-weight:500;font-size:12px}
-  .pcard li.empty{color:var(--tx3);font-weight:500}
-  /* relations graph */
-  .relbox{display:grid;grid-template-columns:1.3fr 1fr;gap:24px;align-items:start}
-  @media(max-width:820px){.relbox{grid-template-columns:1fr}}
-  .graph{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:8px}
-  .graph svg{width:100%;height:auto;display:block}
-  .legend{display:flex;gap:16px;flex-wrap:wrap;padding:10px 14px;font-size:12.5px;color:var(--tx2)}
-  .legend span{display:inline-flex;align-items:center;gap:6px}
-  .legend i{width:18px;height:3px;border-radius:2px;display:inline-block}
-  .rellist{display:flex;flex-direction:column;gap:10px}
-  .relrow{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 16px}
-  .relrow .top{display:flex;align-items:center;gap:8px;font-weight:800;font-size:14px;margin-bottom:3px}
-  .reltype{font-size:11px;font-weight:800;padding:2px 8px;border-radius:6px}
-  .reltype.tension{color:#2c0f0c;background:var(--lo)}
-  .reltype.agree{color:#0b2a1c;background:var(--hi)}
-  .reltype.builds-on{color:#0a1a33;background:var(--blue)}
-  .reltype.network{color:#e9ecf2;background:#3a4150}
-  .relrow .rn{color:var(--tx2);font-size:12.5px}
-  /* timeline */
-  .tl{position:relative;margin-left:8px;padding-left:24px;border-left:2px solid var(--line)}
-  .tl .item{position:relative;margin-bottom:22px}
-  .tl .item::before{content:"";position:absolute;left:-31px;top:4px;width:10px;height:10px;border-radius:50%;background:var(--amber);border:2px solid var(--bg)}
-  .tl .date{color:var(--amber);font-size:12.5px;font-weight:700}
-  .tl .ttl{font-size:14px;font-weight:700;margin:1px 0 3px}
-  .tl .ch{color:var(--tx2);font-size:13.5px}
-  /* bets & risks */
-  .br{display:grid;grid-template-columns:1fr 1fr;gap:32px}
-  @media(max-width:820px){.br{grid-template-columns:1fr}}
-  .betrow{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:17px 20px;margin-bottom:12px}
-  .betrow .tag{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#bcd;background:#1e2636;border:1px solid #2b3a52;padding:3px 9px;border-radius:7px;margin-bottom:7px}
-  .betrow .tag.st{color:#2c2205;background:var(--amber);border-color:var(--amber);margin-left:6px;text-transform:none}
-  .betrow h4{margin:0 0 4px;font-size:15.5px;font-weight:800}.betrow p{margin:0;color:var(--tx2);font-size:13px}
-  .riskrow{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:15px 20px 15px 22px;margin-bottom:12px;position:relative}
-  .riskrow::before{content:"";position:absolute;left:0;top:14px;width:8px;height:8px;border-radius:50%}
-  .riskrow.high::before{background:var(--lo)}.riskrow.mid::before{background:var(--mid)}.riskrow.low::before{background:var(--acc)}
-  .riskrow h4{margin:0 0 3px;font-size:14.5px;font-weight:800}.riskrow p{margin:0;color:var(--tx2);font-size:13px}
-  /* v3: conflict axes & traps */
-  .axisrow{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:17px 20px;margin-bottom:14px}
-  .axisrow .axttl{font-weight:800;font-size:15px;margin-bottom:2px}
-  .axisrow .axiom{color:var(--tx2);font-size:12.5px;margin-bottom:10px}
-  .axisrow .axiom b{color:var(--amber)}
-  .axisrow .sides{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-  @media(max-width:820px){.axisrow .sides{grid-template-columns:1fr}}
-  .axisrow .side{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13px}
-  .axisrow .side .who{font-weight:800;font-size:12.5px;margin-bottom:3px}
-  .axisrow .axnote{color:var(--tx3);font-size:12px;margin-top:10px}
-  .traprow{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--lo);border-radius:12px;padding:13px 16px;margin-bottom:10px}
-  .traprow.resolved{border-left-color:var(--hi)}
-  .traprow.hearsay{opacity:.72}
-  .traprow .top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px}
-  .traprow .who{font-weight:800;font-size:13.5px}
-  .traprow .st{font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:6px;background:var(--amber);color:#2c2205}
-  .traprow .hs{font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:6px;background:#3a4150;color:#e9ecf2}
-  .traprow p{margin:0;color:var(--tx2);font-size:13px}
-  .ev.hearsay-badge{color:#e9ecf2;background:#3a4150}
-  .pb{margin-top:10px;background:var(--bg);border:1px dashed var(--line);border-radius:10px;padding:9px 12px;font-size:12.5px;color:var(--tx2)}
-  .pb .lbl{font-size:10.5px;font-weight:800;letter-spacing:.06em;color:var(--amber);text-transform:uppercase;margin-bottom:3px}
-  footer{padding:44px 0 80px}
-  footer .note{color:var(--tx2);font-size:13px;max-width:820px;margin-bottom:18px}
-  footer .srcs{list-style:none;padding:0;margin:0 0 22px;display:flex;flex-direction:column;gap:5px}
-  footer .srcs li{font-size:12px;color:var(--tx3);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-  footer .foot{font-size:11.5px;color:var(--tx3);border-top:1px solid var(--line);padding-top:18px}
-  .empty{color:var(--tx3);font-size:14px}
-</style>
-</head>
-<body>
-<div id="drop"><div class="msg">objects.json 을 여기에 놓으세요</div></div>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>멘탈모델 온톨로지 뷰어</title>
+    <style>
+      :root {
+        --bg: #0c0d10;
+        --card: #16181f;
+        --card2: #1b1e27;
+        --line: #262a35;
+        --tx: #e9ecf2;
+        --tx2: #a2a9b8;
+        --tx3: #6b7280;
+        --hi: #34d17f;
+        --mid: #e6b34a;
+        --lo: #f26157;
+        --acc: #8fd4a8;
+        --amber: #e6b34a;
+        --blue: #6ea8ff;
+        --radius: 16px;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: var(--bg);
+        color: var(--tx);
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Pretendard",
+          "Apple SD Gothic Neo", "Segoe UI", Roboto, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        line-height: 1.55;
+      }
+      .wrap {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+      /* top bar */
+      header.top {
+        position: sticky;
+        top: 0;
+        z-index: 30;
+        background: rgba(12, 13, 16, 0.85);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid var(--line);
+      }
+      .top .wrap {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 56px;
+        gap: 12px;
+      }
+      .brand {
+        font-size: 14px;
+        color: var(--tx2);
+      }
+      .brand b {
+        color: var(--tx);
+      }
+      .loadbtn {
+        font: inherit;
+        font-size: 13px;
+        font-weight: 700;
+        color: #06231a;
+        background: var(--hi);
+        border: none;
+        padding: 9px 16px;
+        border-radius: 999px;
+        cursor: pointer;
+      }
+      .loadbtn.ghost {
+        color: var(--tx);
+        background: var(--card2);
+        border: 1px solid var(--line);
+      }
+      /* sample banner */
+      .banner {
+        background: #221c0d;
+        border-bottom: 1px solid #3a2f12;
+        color: #e8cf93;
+        font-size: 13px;
+      }
+      .banner .wrap {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 42px;
+      }
+      .banner.hidden {
+        display: none;
+      }
+      /* drop overlay */
+      #drop {
+        position: fixed;
+        inset: 0;
+        z-index: 50;
+        background: rgba(12, 13, 16, 0.92);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        border: 3px dashed var(--hi);
+      }
+      #drop.on {
+        display: flex;
+      }
+      #drop .msg {
+        font-size: 22px;
+        font-weight: 800;
+        color: var(--hi);
+      }
+      /* hero */
+      .hero {
+        padding: 48px 0 36px;
+        border-bottom: 1px solid var(--line);
+      }
+      .kicker {
+        color: var(--amber);
+        font-size: 12.5px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        margin-bottom: 14px;
+      }
+      .hero h1 {
+        font-size: clamp(30px, 4.6vw, 52px);
+        line-height: 1.1;
+        margin: 0 0 16px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+      }
+      .hero .sub {
+        color: var(--tx2);
+        font-size: 16px;
+        max-width: 660px;
+      }
+      .stats {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-top: 26px;
+      }
+      .stat {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 16px 22px;
+        min-width: 120px;
+      }
+      .stat .num {
+        font-size: 30px;
+        font-weight: 800;
+      }
+      .stat .lab {
+        color: var(--tx2);
+        font-size: 12.5px;
+      }
+      .navbtns {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 24px;
+      }
+      .navbtns button {
+        font: inherit;
+        font-size: 13.5px;
+        font-weight: 600;
+        color: var(--tx);
+        background: var(--card2);
+        border: 1px solid var(--line);
+        padding: 9px 16px;
+        border-radius: 999px;
+        cursor: pointer;
+      }
+      .navbtns button:hover {
+        background: #232734;
+      }
+      /* sections */
+      section {
+        padding: 52px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      section.hidden {
+        display: none;
+      }
+      .sec-head {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 24px;
+        margin-bottom: 28px;
+        flex-wrap: wrap;
+      }
+      .sec-head h2 {
+        font-size: clamp(26px, 3.6vw, 38px);
+        margin: 0;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+      }
+      .sec-head p {
+        color: var(--tx2);
+        font-size: 14px;
+        max-width: 440px;
+        margin: 0;
+        text-align: right;
+      }
+      @media (max-width: 640px) {
+        .sec-head p {
+          text-align: left;
+        }
+      }
+      /* collapsible sections */
+      .sec-head {
+        cursor: pointer;
+      }
+      .sec-head h2 .caret {
+        display: inline-block;
+        color: var(--tx2);
+        font-size: 0.62em;
+        font-weight: 700;
+        margin-right: 10px;
+        transition: transform 0.18s;
+        vertical-align: middle;
+      }
+      section.collapsed .sec-head {
+        margin-bottom: 0;
+      }
+      section.collapsed .sec-head h2 .caret {
+        transform: rotate(-90deg);
+      }
+      section.collapsed .wrap > *:not(.sec-head) {
+        display: none;
+      }
+      section.collapsed .sec-head p {
+        display: none;
+      }
+      section.collapsed .sec-head::after {
+        content: attr(data-count);
+        margin-left: auto;
+        color: var(--tx2);
+        font-size: 13px;
+        font-weight: 700;
+        white-space: nowrap;
+        align-self: center;
+      }
+      .collapse-all {
+        font: inherit;
+        font-size: 12.5px;
+        font-weight: 600;
+        color: var(--tx2);
+        background: var(--card2);
+        border: 1px solid var(--line);
+        padding: 9px 16px;
+        border-radius: 999px;
+        cursor: pointer;
+      }
+      /* person focus */
+      .fsel {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+      }
+      .fsel button {
+        font: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--tx2);
+        background: var(--card2);
+        border: 1px solid var(--line);
+        padding: 6px 13px;
+        border-radius: 999px;
+        cursor: pointer;
+      }
+      .fsel button.on {
+        color: #1a1d26;
+        background: var(--amber);
+        border-color: var(--amber);
+      }
+      .fpanel {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 22px 24px;
+      }
+      .fpanel .fhead {
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .fpanel .fhead h3 {
+        font-size: 22px;
+        font-weight: 800;
+        margin: 0;
+      }
+      .fpanel .fhead .role {
+        color: var(--tx2);
+        font-size: 14px;
+      }
+      .fpanel .fsum {
+        color: var(--tx);
+        font-size: 14.5px;
+        line-height: 1.6;
+        margin: 10px 0 4px;
+      }
+      .fpanel .fpb {
+        background: var(--card2);
+        border-radius: 10px;
+        padding: 10px 14px;
+        margin: 12px 0;
+        font-size: 13.5px;
+        color: var(--tx);
+      }
+      .fpanel .fpb b {
+        color: var(--amber);
+      }
+      .fgrp {
+        margin-top: 20px;
+      }
+      .fgrp > .lbl {
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+        color: var(--tx2);
+        text-transform: uppercase;
+        margin-bottom: 10px;
+      }
+      .fthemes {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 12px;
+      }
+      .fmap {
+        background: var(--card2);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 8px;
+      }
+      .tensionmap {
+        background: var(--card2);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 8px;
+        margin-bottom: 20px;
+      }
+      .tensionmap svg {
+        width: 100%;
+        height: auto;
+        max-height: 380px;
+        display: block;
+      }
+      .evotrack {
+        max-height: 260px;
+        overflow: auto;
+      }
+      .evorow {
+        display: flex;
+        gap: 12px;
+        padding: 5px 0;
+        border-bottom: 1px solid var(--line);
+        font-size: 13px;
+      }
+      .evorow .ed {
+        color: var(--amber);
+        font-weight: 700;
+        flex: none;
+        width: 82px;
+      }
+      .evorow .en {
+        color: var(--tx);
+      }
+      .fbrief {
+        background: var(--card2);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 14px 16px;
+        margin: 12px 0;
+      }
+      .fbrief .fblbl {
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+        color: var(--amber);
+        text-transform: uppercase;
+        margin-bottom: 10px;
+      }
+      .fbrow {
+        display: flex;
+        gap: 12px;
+        padding: 5px 0;
+        font-size: 13.5px;
+        line-height: 1.55;
+      }
+      .fbrow .fbk {
+        flex: none;
+        width: 96px;
+        color: var(--tx2);
+        font-weight: 700;
+      }
+      .fbul {
+        margin: 0;
+        padding-left: 16px;
+      }
+      .fbul li {
+        margin: 2px 0;
+      }
+      .hmwrap {
+        overflow-x: auto;
+      }
+      table.heatmap {
+        border-collapse: collapse;
+        font-size: 12.5px;
+      }
+      table.heatmap th,
+      table.heatmap td {
+        border: 1px solid var(--bg);
+        text-align: center;
+        padding: 7px 6px;
+      }
+      table.heatmap th span {
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+        white-space: nowrap;
+        color: var(--tx2);
+        font-weight: 700;
+      }
+      table.heatmap .hcorner {
+        background: transparent;
+        border: none;
+      }
+      table.heatmap .hrow {
+        text-align: left;
+        color: var(--tx);
+        font-weight: 600;
+        white-space: nowrap;
+        padding-right: 14px;
+        background: var(--card2);
+      }
+      table.heatmap .hcell {
+        color: #1a1d26;
+        font-weight: 800;
+        min-width: 34px;
+        background: var(--card);
+      }
+      .fmap svg {
+        width: 100%;
+        height: auto;
+        max-height: 320px;
+        display: block;
+      }
+      .fth {
+        background: var(--card2);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 12px 14px;
+      }
+      .fth h5 {
+        margin: 0 0 7px;
+        font-size: 13.5px;
+        font-weight: 800;
+      }
+      .fth ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .fth li {
+        font-size: 12.5px;
+        color: var(--tx);
+        padding: 2.5px 0;
+        display: flex;
+        gap: 6px;
+      }
+      .fth li .d {
+        color: var(--amber);
+        flex: none;
+      }
+      .faxis {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 12px 15px;
+        margin-bottom: 10px;
+      }
+      .faxis .vs {
+        font-weight: 800;
+        font-size: 14px;
+      }
+      .faxis .vs::before {
+        content: "⚔ ";
+        color: var(--amber);
+      }
+      .faxis .sh {
+        color: var(--tx2);
+        font-size: 12.5px;
+        margin: 4px 0 8px;
+      }
+      .faxis .sides {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      .faxis .side {
+        font-size: 12.5px;
+        color: var(--tx);
+        background: var(--card2);
+        border-radius: 8px;
+        padding: 8px 10px;
+      }
+      .faxis .side b {
+        display: block;
+        color: var(--tx2);
+        font-size: 11px;
+        margin-bottom: 3px;
+      }
+      .frel {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        font-size: 13px;
+        padding: 4px 0;
+      }
+      .frel .rt {
+        font-size: 11px;
+        font-weight: 700;
+        padding: 1px 8px;
+        border-radius: 999px;
+        flex: none;
+      }
+      .frel .rt.tension {
+        background: #3a2233;
+        color: #ff9db5;
+      }
+      .frel .rt.agree {
+        background: #1f3326;
+        color: #8fe3ab;
+      }
+      .frel .rt.builds-on {
+        background: #22303a;
+        color: #8fd0e3;
+      }
+      .ftrap {
+        font-size: 13px;
+        color: var(--tx);
+        background: var(--card2);
+        border-radius: 8px;
+        padding: 9px 12px;
+        margin-bottom: 8px;
+      }
+      @media (max-width: 560px) {
+        .faxis .sides {
+          grid-template-columns: 1fr;
+        }
+      }
+      .ev {
+        font-size: 11.5px;
+        font-weight: 700;
+        padding: 4px 10px;
+        border-radius: 999px;
+        white-space: nowrap;
+      }
+      .ev.high {
+        color: #0b2a1c;
+        background: var(--hi);
+      }
+      .ev.mid {
+        color: #2c2205;
+        background: var(--mid);
+      }
+      .ev.low {
+        color: #2c0f0c;
+        background: var(--lo);
+      }
+      .grid {
+        display: grid;
+        gap: 16px;
+      }
+      .g3 {
+        grid-template-columns: repeat(3, 1fr);
+      }
+      @media (max-width: 900px) {
+        .g3 {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+      @media (max-width: 640px) {
+        .g3 {
+          grid-template-columns: 1fr;
+        }
+      }
+      /* people */
+      .pcard {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: 22px;
+      }
+      .pcard .ph {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+      }
+      .pcard h3 {
+        margin: 0;
+        font-size: 21px;
+        font-weight: 800;
+      }
+      .pcard .role {
+        color: var(--amber);
+        font-size: 13px;
+        font-weight: 600;
+        margin-top: 3px;
+      }
+      .pcard .psum {
+        color: var(--tx2);
+        font-size: 13.5px;
+        margin: 13px 0 15px;
+      }
+      .pcard .lbl {
+        color: var(--tx3);
+        font-size: 11.5px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        margin: 0 0 8px;
+      }
+      .pcard ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .pcard li {
+        font-size: 13.5px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--acc);
+        flex: none;
+      }
+      .evo {
+        margin-top: 14px;
+        border-top: 1px dashed var(--line);
+        padding-top: 12px;
+      }
+      .evo .row {
+        font-size: 12px;
+        color: var(--tx2);
+        display: flex;
+        gap: 8px;
+        margin-bottom: 4px;
+      }
+      .evo .d {
+        color: var(--amber);
+        font-weight: 700;
+        flex: none;
+      }
+      /* filters + models */
+      .filters {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 24px;
+      }
+      .filters button {
+        font: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--tx2);
+        background: transparent;
+        border: 1px solid var(--line);
+        padding: 8px 15px;
+        border-radius: 999px;
+        cursor: pointer;
+      }
+      .filters button:hover {
+        color: var(--tx);
+        border-color: #3a4150;
+      }
+      .filters button.on {
+        background: var(--amber);
+        color: #2c2205;
+        border-color: var(--amber);
+      }
+      .mcard {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+      }
+      .mcard .mh {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+      .cat {
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--amber);
+      }
+      .mcard h4 {
+        margin: 0 0 9px;
+        font-size: 17px;
+        font-weight: 800;
+        line-height: 1.3;
+      }
+      .mcard .mdesc {
+        color: var(--tx2);
+        font-size: 13px;
+        margin: 0 0 12px;
+      }
+      .quote {
+        border-left: 2px solid var(--hi);
+        padding: 7px 0 7px 11px;
+        margin: 0 0 12px;
+        color: var(--tx);
+        font-size: 12px;
+        font-style: italic;
+        background: linear-gradient(
+          90deg,
+          rgba(52, 209, 127, 0.06),
+          transparent
+        );
+      }
+      .ptags {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-top: auto;
+      }
+      .ptag {
+        font-size: 11.5px;
+        font-weight: 700;
+        color: var(--tx);
+        background: var(--card2);
+        border: 1px solid var(--line);
+        padding: 4px 9px;
+        border-radius: 8px;
+      }
+      .ptag.about {
+        color: var(--amber);
+        border-style: dashed;
+      }
+      .orgbadge {
+        font-size: 10.5px;
+        font-weight: 800;
+        color: var(--amber);
+        border: 1px dashed var(--amber);
+        padding: 1px 7px;
+        border-radius: 999px;
+        vertical-align: middle;
+      }
+      .orgcard {
+        border-style: dashed;
+      }
+      .pcard .who {
+        color: var(--tx3);
+        font-weight: 500;
+        font-size: 12px;
+      }
+      .pcard li.empty {
+        color: var(--tx3);
+        font-weight: 500;
+      }
+      /* relations graph */
+      .relbox {
+        display: grid;
+        grid-template-columns: 1.3fr 1fr;
+        gap: 24px;
+        align-items: start;
+      }
+      @media (max-width: 820px) {
+        .relbox {
+          grid-template-columns: 1fr;
+        }
+      }
+      .graph {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: 8px;
+      }
+      .graph svg {
+        width: 100%;
+        height: auto;
+        display: block;
+      }
+      .legend {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        padding: 10px 14px;
+        font-size: 12.5px;
+        color: var(--tx2);
+      }
+      .legend span {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .legend i {
+        width: 18px;
+        height: 3px;
+        border-radius: 2px;
+        display: inline-block;
+      }
+      .rellist {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .relrow {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 13px 16px;
+      }
+      .relrow .top {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 800;
+        font-size: 14px;
+        margin-bottom: 3px;
+      }
+      .reltype {
+        font-size: 11px;
+        font-weight: 800;
+        padding: 2px 8px;
+        border-radius: 6px;
+      }
+      .reltype.tension {
+        color: #2c0f0c;
+        background: var(--lo);
+      }
+      .reltype.agree {
+        color: #0b2a1c;
+        background: var(--hi);
+      }
+      .reltype.builds-on {
+        color: #0a1a33;
+        background: var(--blue);
+      }
+      .reltype.network {
+        color: #e9ecf2;
+        background: #3a4150;
+      }
+      .relrow .rn {
+        color: var(--tx2);
+        font-size: 12.5px;
+      }
+      /* timeline */
+      .tl {
+        position: relative;
+        margin-left: 8px;
+        padding-left: 24px;
+        border-left: 2px solid var(--line);
+      }
+      .tl .item {
+        position: relative;
+        margin-bottom: 22px;
+      }
+      .tl .item::before {
+        content: "";
+        position: absolute;
+        left: -31px;
+        top: 4px;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--amber);
+        border: 2px solid var(--bg);
+      }
+      .tl .date {
+        color: var(--amber);
+        font-size: 12.5px;
+        font-weight: 700;
+      }
+      .tl .ttl {
+        font-size: 14px;
+        font-weight: 700;
+        margin: 1px 0 3px;
+      }
+      .tl .ch {
+        color: var(--tx2);
+        font-size: 13.5px;
+      }
+      /* meta-patterns */
+      .metagrid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 14px;
+      }
+      .mpcard {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 16px 18px;
+      }
+      .mpcard .mph {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .mpcard h3 {
+        font-size: 15.5px;
+        font-weight: 800;
+        margin: 0;
+      }
+      .mpcard .cnt {
+        font-size: 12px;
+        font-weight: 800;
+        color: var(--amber);
+        background: var(--card2);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 2px 9px;
+        white-space: nowrap;
+      }
+      .mpcard .mpd {
+        color: var(--tx2);
+        font-size: 13px;
+        margin: 6px 0 9px;
+        line-height: 1.55;
+      }
+      .mpcard .mpp {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin-bottom: 8px;
+      }
+      .mpcard .mpp span {
+        font-size: 11.5px;
+        color: var(--tx2);
+        background: var(--card2);
+        border-radius: 999px;
+        padding: 2px 8px;
+      }
+      .mpcard ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        max-height: 132px;
+        overflow: auto;
+      }
+      .mpcard li {
+        font-size: 12.5px;
+        color: var(--tx);
+        padding: 3px 0;
+        display: flex;
+        gap: 6px;
+      }
+      .mpcard li .d {
+        color: var(--amber);
+        flex: none;
+      }
+      /* lineage */
+      .lnctrl {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+      }
+      .lnctrl button {
+        font: inherit;
+        font-size: 12.5px;
+        font-weight: 600;
+        color: var(--tx2);
+        background: var(--card2);
+        border: 1px solid var(--line);
+        padding: 5px 12px;
+        border-radius: 999px;
+        cursor: pointer;
+      }
+      .lnctrl button.on {
+        color: #1a1d26;
+        background: var(--amber);
+        border-color: var(--amber);
+      }
+      .lnaxis {
+        display: flex;
+        justify-content: space-between;
+        color: var(--tx2);
+        font-size: 11.5px;
+        margin: 0 0 6px 210px;
+      }
+      .lnwrap {
+        max-height: 520px;
+        overflow: auto;
+        border-top: 1px solid var(--line);
+      }
+      .lnrow {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        height: 22px;
+      }
+      .lnrow .lnlab {
+        width: 200px;
+        flex: none;
+        font-size: 12px;
+        color: var(--tx);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .lntrack {
+        position: relative;
+        flex: 1;
+        height: 100%;
+      }
+      .lnbar {
+        position: absolute;
+        top: 7px;
+        height: 8px;
+        border-radius: 999px;
+        background: #3a4150;
+      }
+      .lnbar.high {
+        background: var(--amber);
+      }
+      .lnbar.mid {
+        background: #6b7280;
+      }
+      .lnbar .lndot {
+        position: absolute;
+        right: -3px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: inherit;
+        box-shadow: 0 0 0 2px var(--bg);
+      }
+      .lnrow .lncnt {
+        flex: none;
+        font-size: 11px;
+        color: var(--tx2);
+        width: 34px;
+        text-align: right;
+      }
+      /* bets & risks */
+      .br {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 32px;
+      }
+      @media (max-width: 820px) {
+        .br {
+          grid-template-columns: 1fr;
+        }
+      }
+      .betrow {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 17px 20px;
+        margin-bottom: 12px;
+      }
+      .betrow .tag {
+        display: inline-block;
+        font-size: 10.5px;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: #bcd;
+        background: #1e2636;
+        border: 1px solid #2b3a52;
+        padding: 3px 9px;
+        border-radius: 7px;
+        margin-bottom: 7px;
+      }
+      .betrow .tag.st {
+        color: #2c2205;
+        background: var(--amber);
+        border-color: var(--amber);
+        margin-left: 6px;
+        text-transform: none;
+      }
+      .betrow h4 {
+        margin: 0 0 4px;
+        font-size: 15.5px;
+        font-weight: 800;
+      }
+      .betrow p {
+        margin: 0;
+        color: var(--tx2);
+        font-size: 13px;
+      }
+      .riskrow {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 15px 20px 15px 22px;
+        margin-bottom: 12px;
+        position: relative;
+      }
+      .riskrow::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 14px;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+      }
+      .riskrow.high::before {
+        background: var(--lo);
+      }
+      .riskrow.mid::before {
+        background: var(--mid);
+      }
+      .riskrow.low::before {
+        background: var(--acc);
+      }
+      .riskrow h4 {
+        margin: 0 0 3px;
+        font-size: 14.5px;
+        font-weight: 800;
+      }
+      .riskrow p {
+        margin: 0;
+        color: var(--tx2);
+        font-size: 13px;
+      }
+      /* v3: conflict axes & traps */
+      .axisrow {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 17px 20px;
+        margin-bottom: 14px;
+      }
+      .axisrow .axttl {
+        font-weight: 800;
+        font-size: 15px;
+        margin-bottom: 2px;
+      }
+      .axisrow .axiom {
+        color: var(--tx2);
+        font-size: 12.5px;
+        margin-bottom: 10px;
+      }
+      .axisrow .axiom b {
+        color: var(--amber);
+      }
+      .axisrow .sides {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+      @media (max-width: 820px) {
+        .axisrow .sides {
+          grid-template-columns: 1fr;
+        }
+      }
+      .axisrow .side {
+        background: var(--bg);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 10px 12px;
+        font-size: 13px;
+      }
+      .axisrow .side .who {
+        font-weight: 800;
+        font-size: 12.5px;
+        margin-bottom: 3px;
+      }
+      .axisrow .axnote {
+        color: var(--tx3);
+        font-size: 12px;
+        margin-top: 10px;
+      }
+      .traprow {
+        position: relative;
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 13px 16px 13px 24px;
+        margin-bottom: 10px;
+      }
+      .traprow::before {
+        content: "";
+        position: absolute;
+        left: 11px;
+        top: 18px;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--lo);
+      }
+      .traprow.resolved::before {
+        background: var(--hi);
+      }
+      .traprow.hearsay {
+        opacity: 0.72;
+      }
+      .traprow .top {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 3px;
+      }
+      .traprow .who {
+        font-weight: 800;
+        font-size: 13.5px;
+      }
+      .traprow .st {
+        font-size: 10.5px;
+        font-weight: 800;
+        padding: 2px 8px;
+        border-radius: 6px;
+        background: var(--amber);
+        color: #2c2205;
+      }
+      .traprow .hs {
+        font-size: 10.5px;
+        font-weight: 800;
+        padding: 2px 8px;
+        border-radius: 6px;
+        background: #3a4150;
+        color: #e9ecf2;
+      }
+      .traprow p {
+        margin: 0;
+        color: var(--tx2);
+        font-size: 13px;
+      }
+      .ev.hearsay-badge {
+        color: #e9ecf2;
+        background: #3a4150;
+      }
+      .pb {
+        margin-top: 10px;
+        background: var(--bg);
+        border: 1px dashed var(--line);
+        border-radius: 10px;
+        padding: 9px 12px;
+        font-size: 12.5px;
+        color: var(--tx2);
+      }
+      .pb .lbl {
+        font-size: 10.5px;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        color: var(--amber);
+        text-transform: uppercase;
+        margin-bottom: 3px;
+      }
+      footer {
+        padding: 44px 0 80px;
+      }
+      footer .note {
+        color: var(--tx2);
+        font-size: 13px;
+        max-width: 820px;
+        margin-bottom: 18px;
+      }
+      footer .srcs {
+        list-style: none;
+        padding: 0;
+        margin: 0 0 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+      footer .srcs li {
+        font-size: 12px;
+        color: var(--tx3);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      footer .foot {
+        font-size: 11.5px;
+        color: var(--tx3);
+        border-top: 1px solid var(--line);
+        padding-top: 18px;
+      }
+      .empty {
+        color: var(--tx3);
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="drop"><div class="msg">objects.json 을 여기에 놓으세요</div></div>
 
-<header class="top"><div class="wrap">
-  <div class="brand"><b>멘탈모델 온톨로지</b> 뷰어</div>
-  <div>
-    <button class="loadbtn" id="load">📁 objects.json 불러오기</button>
-    <input type="file" id="file" accept=".json,application/json" style="display:none" />
-  </div>
-</div></header>
+    <header class="top">
+      <div class="wrap">
+        <div class="brand"><b>멘탈모델 온톨로지</b> 뷰어</div>
+        <div>
+          <button class="loadbtn" id="load">📁 objects.json 불러오기</button>
+          <input
+            type="file"
+            id="file"
+            accept=".json,application/json"
+            style="display: none"
+          />
+        </div>
+      </div>
+    </header>
 
-<div class="banner" id="banner"><div class="wrap">
-  <span>⚠️ 지금은 <b>샘플(Acme)</b> 데이터입니다 — 내 회의로 만든 objects.json 을 불러오면 교체됩니다.</span>
-  <button class="loadbtn ghost" id="load2">내 파일 불러오기</button>
-</div></div>
-
-<div class="hero"><div class="wrap">
-  <div class="kicker">Mental Model Ontology</div>
-  <h1 id="h-title"></h1>
-  <p class="sub" id="h-sub"></p>
-  <div class="stats" id="stats"></div>
-  <div class="navbtns" id="navbtns"></div>
-</div></div>
-
-<section id="s-people"><div class="wrap">
-  <div class="sec-head"><h2>사람별 모델</h2><p>각 인물의 핵심 사고방식 + 근거 등급(높음/중간/부족). 여러 회의가 있으면 사고 변화도 표시.</p></div>
-  <div class="grid g3" id="people-grid"></div>
-</div></section>
-
-<section id="s-map"><div class="wrap">
-  <div class="sec-head"><h2>멘탈모델 지도</h2><p>범주로 묶은 사고의 골격. 버튼으로 좁혀 볼 수 있고, 실제 발언이 있으면 인용으로 표시.</p></div>
-  <div class="filters" id="filters"></div>
-  <div class="grid g3" id="models-grid"></div>
-</div></section>
-
-<section id="s-rel"><div class="wrap">
-  <div class="sec-head"><h2>관계와 대립</h2><p>누가 누구와 합의·대립·발전하는지. 대립(빨강)이 위임·정렬의 핵심 신호다.</p></div>
-  <div class="relbox">
-    <div>
-      <div class="graph"><svg id="relsvg" viewBox="0 0 800 500" preserveAspectRatio="xMidYMid meet"></svg></div>
-      <div class="legend">
-        <span><i style="background:#f26157"></i>대립 tension</span>
-        <span><i style="background:#34d17f"></i>합의 agree</span>
-        <span><i style="background:#6ea8ff"></i>발전 builds-on</span>
-        <span><i style="background:#8b93a3"></i>네트워크 (소개·협업·투자)</span>
+    <div class="banner" id="banner">
+      <div class="wrap">
+        <span
+          >⚠️ 지금은 <b>샘플(Acme)</b> 데이터입니다 — 내 회의로 만든
+          objects.json 을 불러오면 교체됩니다.</span
+        >
+        <button class="loadbtn ghost" id="load2">내 파일 불러오기</button>
       </div>
     </div>
-    <div class="rellist" id="rel-list"></div>
-  </div>
-</div></section>
 
-<section id="s-time"><div class="wrap">
-  <div class="sec-head"><h2>시간축 변화</h2><p>회의를 거치며 조직의 사고·방향이 어떻게 움직였는지.</p></div>
-  <div class="tl" id="timeline"></div>
-</div></section>
+    <div class="hero">
+      <div class="wrap">
+        <div class="kicker">Mental Model Ontology</div>
+        <h1 id="h-title"></h1>
+        <p class="sub" id="h-sub"></p>
+        <div class="stats" id="stats"></div>
+        <div class="navbtns" id="navbtns"></div>
+        <div style="margin-top: 12px">
+          <button class="collapse-all" id="toggle-all">모두 펼치기 ▾</button>
+        </div>
+      </div>
+    </div>
 
-<section id="s-axes"><div class="wrap">
-  <div class="sec-head"><h2>충돌 축</h2><p>공유하는 공리는 같고, 실행이 대칭으로 갈리는 지점 — 갈등의 공통 지반까지 함께 보여줍니다.</p></div>
-  <div id="axes-list"></div>
-</div></section>
+    <section id="s-meta">
+      <div class="wrap">
+        <div class="sec-head">
+          <h2>메타패턴</h2>
+          <p>
+            개별 모델 위를 가로지르는 상위 테마 — 사고의 큰 결이 어디로
+            모이는지.
+          </p>
+        </div>
+        <div class="metagrid" id="meta-grid"></div>
+      </div>
+    </section>
 
-<section id="s-bets"><div class="wrap">
-  <div class="sec-head"><h2>전략 베팅과 리스크</h2><p>왼쪽은 실행 후보, 오른쪽은 이를 제약하는 리스크.</p></div>
-  <div class="br"><div id="bets-col"></div><div id="risks-col"></div></div>
-</div></section>
+    <section id="s-focus">
+      <div class="wrap">
+        <div class="sec-head">
+          <h2>인물 포커스</h2>
+          <p>
+            한 사람의 사고 구조와 대립 다이내믹스를 한 화면에 — 모델·충돌
+            축·관계·함정.
+          </p>
+        </div>
+        <div class="fsel" id="f-sel"></div>
+        <div class="fpanel" id="f-panel"></div>
+      </div>
+    </section>
 
-<section id="s-traps"><div class="wrap">
-  <div class="sec-head"><h2>함정 지도</h2><p>각 사고방식이 만들어내는 그림자(부작용)와 그 상태. 초록 테두리는 해소된 함정, 흐린 항목은 전언·해석이라 조심해서 읽어야 하는 것.</p></div>
-  <div id="traps-list"></div>
-</div></section>
+    <section id="s-heatmap">
+      <div class="wrap">
+        <div class="sec-head">
+          <h2>팀 정렬 히트맵</h2>
+          <p>
+            메타테마별로 누구의 사고가 몰려 있고 어디가 비어 있는지. 밝을수록 그
+            사람이 그 테마에 가진 모델이 많다.
+          </p>
+        </div>
+        <div class="hmwrap" id="hm-wrap"></div>
+      </div>
+    </section>
 
-<footer><div class="wrap">
-  <p class="note" id="f-note"></p>
-  <ul class="srcs" id="f-srcs"></ul>
-  <div class="foot">멘탈모델 온톨로지 뷰어 · objects.json 하나로 재생성 · 방법론: 탭제로 김태호 · 인용은 STT 교정본이라 원문과 다를 수 있음</div>
-</div></footer>
+    <section id="s-people">
+      <div class="wrap">
+        <div class="sec-head">
+          <h2>사람별 모델</h2>
+          <p>
+            각 인물의 핵심 사고방식 + 근거 등급(높음/중간/부족). 여러 회의가
+            있으면 사고 변화도 표시.
+          </p>
+        </div>
+        <div class="grid g3" id="people-grid"></div>
+      </div>
+    </section>
 
-<script id="sample-data" type="application/json">
-{"meta":{"schema_version":3,"title":"Acme 리더 멘탈모델 온톨로지 (샘플)","org":"Acme","subtitle":"가상의 구독 커머스 스타트업 Acme의 5~6월 전략·가격 회의 2건에서 리더들의 사고방식을 재구성한 예시 데이터.","date_range":"2026-05-20 ~ 2026-06-24","sensitivity":"L2","confidence_note":"이 파일은 도구 시연용 가상 데이터입니다. 실제 인물·조직과 무관합니다. 인용문도 예시입니다.","sources":["2026-05-20 Acme 전략 회의 (녹취)","2026-06-24 Acme 가격정책 회의 (녹취)"],"processed_source_ids":["acme-rec-0520","acme-rec-0624"]},"meetings":[{"id":"m1","date":"2026-05-20","title":"전략 회의 — 다음 분기 방향","source_id":"acme-rec-0520","path":"transcripts/2026/2026-05/2026-05-20_전략회의-다음분기.md"},{"id":"m2","date":"2026-06-24","title":"가격정책 회의 — 구독료 인상 여부","source_id":"acme-rec-0624","path":"transcripts/2026/2026-06/2026-06-24_가격정책-인상여부.md"}],"people":[{"name":"정우진","type":"person","role":"CEO","org":"Acme","summary":"시장에 먼저 신호를 던지고 반응으로 배우려는 속도 지향 창업자. 완성도보다 학습 속도를 우선하며, 팀이 스스로 답을 찾게 질문으로 이끈다.","evidence":"high","models":["speed-over-polish","declare-to-learn","question-led"],"evolution":[{"date":"2026-05-20","note":"무조건 빠른 인상 공표를 주장."},{"date":"2026-06-24","note":"이탈 데이터 보고 '단계적 인상'으로 톤 조정 — 속도 지향은 유지하되 리스크 수용."}],"playbook":"결론을 주지 말고 데이터를 먼저 보여줘라 — 이탈 수치 하나가 30분 설득보다 빨랐다. 속도 자체를 막지 말고 '더 빨리 배우는 방법'으로 프레이밍하면 수용한다."},{"name":"이서연","type":"person","role":"CPO","org":"Acme","summary":"제품 완성도를 신뢰의 전제로 보는 프로덕트 리더. 차별 기능 없이 가격을 올리면 신뢰가 깨진다고 보고, 사용자 가치가 선행돼야 한다고 주장한다.","evidence":"high","models":["value-before-price","trust-is-fragile"],"evolution":[{"date":"2026-06-24","note":"'번들 기능 먼저 출시 후 인상' 절충안을 제시하며 CEO와 접점 형성."}],"playbook":"'언제 올리냐'가 아니라 '무엇을 먼저 주냐'로 질문을 바꿔라. 가치 선행이 보장되면 속도에도 협조적이다."},{"name":"박도현","type":"person","role":"CFO","org":"Acme","summary":"현금흐름과 런웨이를 판단의 축으로 두는 보수적 재무 리더. 성장도 현금 건전성 안에서만 유효하다고 본다.","evidence":"mid","models":["runway-first","growth-within-cash","investor-discipline-lens"],"playbook":"모든 제안에 런웨이 영향을 한 줄 붙여라. 숫자가 있으면 보수성이 협상 가능해진다."},{"name":"김하늘","type":"person","role":"영업총괄","org":"Acme","summary":"기존 고객 이탈을 최우선 리스크로 보는 신중론자. 채널·리텐션 관점에서 급격한 변화에 브레이크를 건다.","evidence":"mid","models":["churn-first","retention-moat"],"playbook":"현장의 언어('배신감')를 데이터로 번역해주면 가장 강력한 아군이 된다."},{"name":"최민석","type":"person","role":"CTO","org":"Acme","summary":"실험 인프라로 의사결정을 대체하려는 기술 리더. '논쟁 대신 A/B로 확인하자'는 데이터 우선 관점.","evidence":"mid","models":["experiment-over-debate"],"playbook":"논쟁이 길어지면 실험 설계를 맡겨라 — '2주면 답 나온다'가 이 사람의 해결 문법이다."},{"name":"그로우캐피탈","type":"org","role":"시리즈B 리드 투자사","summary":"Acme의 리드 투자사. 리더들의 발언에서 '성장률만큼 소진 규율을 본다'는 상(像)으로 등장 — 투자사 자신의 발언이 아니므로 추정(mid) 이상으로 올리지 않는다.","evidence":"mid","models":[]}],"models":[{"id":"speed-over-polish","category":"전략","title":"완성도보다 학습 속도가 먼저다","desc":"완벽히 다듬기보다 빠르게 내보내 시장 반응으로 배운다. 속도가 곧 정보다.","evidence":"high","holders":["정우진"],"quote":"다 갖추고 내면 이미 늦어요. 일단 던지고 반응 보고 고치는 게 정보가 제일 빨라요.","count":2,"first_seen":"2026-05-20","last_seen":"2026-06-24","related":["declare-to-learn"],"evidence_type":"direct"},{"id":"declare-to-learn","category":"제품","title":"선언이 곧 학습 장치다","desc":"가격 인상을 먼저 공표해 내부 리소스를 모으고 고객 반응을 조기에 확인한다.","evidence":"high","holders":["정우진"],"quote":"인상한다고 먼저 말해두면 팀이 거기에 맞춰 움직이고, 나갈 사람은 지금 갈려요.","count":1,"first_seen":"2026-05-20","related":["speed-over-polish","value-before-price"],"evidence_type":"direct"},{"id":"question-led","category":"조직","title":"답을 주지 않고 질문으로 이끈다","desc":"결론을 박지 않고 질문을 던져 리더들이 스스로 패턴을 찾게 한다.","evidence":"high","holders":["정우진"],"quote":"제가 정답을 말하면 다들 거기서 멈춰요. 그래서 '그럼 이건 어떻게 될까요' 하고 되묻죠.","count":1,"first_seen":"2026-05-20","evidence_type":"direct"},{"id":"value-before-price","category":"제품","title":"가치가 가격보다 먼저다","desc":"차별 기능·사용자 가치가 선행되지 않으면 인상은 신뢰를 깬다. 번들 기능 출시 후 과금해야 설득력이 있다.","evidence":"high","holders":["이서연"],"quote":"지금 올리면 '뭐가 좋아졌는데?' 소리 들어요. 줄 걸 먼저 주고 받아야죠.","count":2,"first_seen":"2026-05-20","last_seen":"2026-06-24","related":["trust-is-fragile","declare-to-learn"],"evidence_type":"direct"},{"id":"trust-is-fragile","category":"제품","title":"신뢰는 깨지기 쉽다","desc":"한 번 잃은 구독자 신뢰는 회복이 비싸다. 변화는 신뢰 예산 안에서 집행한다.","evidence":"mid","holders":["이서연"],"count":1,"first_seen":"2026-05-20","related":["churn-first"],"evidence_type":"direct"},{"id":"runway-first","category":"재무","title":"런웨이가 모든 결정의 상한이다","desc":"현금 소진 속도가 전략의 경계. 성장도 런웨이 안에서만 유효하다.","evidence":"mid","holders":["박도현"],"quote":"재밌는 실험 다 좋은데, 우리 통장이 14개월이에요. 거기서 시작해요.","count":1,"first_seen":"2026-05-20","related":["growth-within-cash"],"evidence_type":"direct"},{"id":"growth-within-cash","category":"재무","title":"현금 건전성 안에서만 성장한다","desc":"성장률보다 현금 회수 주기를 먼저 본다. 인상은 현금흐름 개선 카드로도 유효.","evidence":"mid","holders":["박도현"],"count":1,"first_seen":"2026-06-24","related":["runway-first"],"evidence_type":"direct"},{"id":"investor-discipline-lens","category":"투자","title":"투자자는 성장률만큼 소진 규율을 본다","desc":"다음 라운드 관점에서 번레이트 규율이 성장 스토리의 신뢰도를 좌우한다고 본다. 그로우캐피탈에 '대한' 박도현의 믿음 — 투자사 자신의 발언이 아니므로 mid.","evidence":"mid","holders":["박도현"],"about":["그로우캐피탈"],"quote":"그로우 쪽은 미팅 열면 우리 소진 곡선부터 물어볼 거예요.","count":1,"first_seen":"2026-06-24","related":["runway-first"],"evidence_type":"hearsay"},{"id":"churn-first","category":"리스크","title":"이탈을 최우선으로 본다","desc":"급격한 가격 변화는 기존 고객 이탈로 직결된다. 영향 최소 범위에서 단계적으로.","evidence":"mid","holders":["김하늘"],"quote":"숫자로만 보면 인상이 맞는데, 현장은 '배신감'이라고 말해요. 그게 이탈이에요.","count":1,"first_seen":"2026-06-24","related":["retention-moat","trust-is-fragile"],"evidence_type":"direct"},{"id":"retention-moat","category":"전략","title":"리텐션이 진짜 해자다","desc":"신규 획득보다 재구독율이 방어벽. 가격은 리텐션을 해치지 않는 선에서 조정.","evidence":"mid","holders":["김하늘"],"count":1,"first_seen":"2026-06-24","evidence_type":"direct"},{"id":"experiment-over-debate","category":"기술","title":"논쟁 대신 실험으로 결정한다","desc":"의견 충돌은 A/B 테스트로 푼다. 인상폭도 코호트 실험으로 검증 후 확정.","evidence":"mid","holders":["최민석"],"quote":"이거 회의로 30분 싸울 게 아니라, 두 그룹 나눠서 2주면 답 나와요.","count":1,"first_seen":"2026-06-24","evidence_type":"direct"}],"network":[{"a":"이서연","b":"정우진","kind":"소개","since":"2024-11-01","note":"SaaS 밋업에서 이서연이 정우진을 투자자들에게 소개."},{"a":"박도현","b":"그로우캐피탈","kind":"투자","since":"2025-08-01","note":"시리즈B 리드 — 박도현이 창구."}],"relations":[{"from":"정우진","to":"이서연","type":"tension","topic":"인상 타이밍","note":"CEO(선언 먼저) vs CPO(가치 먼저) — 핵심 대립."},{"from":"이서연","to":"김하늘","type":"agree","topic":"신뢰·이탈","note":"둘 다 급격한 변화의 신뢰 훼손을 경계."},{"from":"박도현","to":"정우진","type":"builds-on","topic":"인상=현금 카드","note":"CFO가 CEO의 인상론에 '현금흐름 개선' 논거를 더함."},{"from":"최민석","to":"정우진","type":"builds-on","topic":"실험으로 속도내기","note":"CTO가 CEO의 속도론을 A/B 실험 방법론으로 구체화."},{"from":"김하늘","to":"박도현","type":"tension","topic":"성장 vs 이탈","note":"재무는 인상 찬성 쪽, 영업은 이탈 우려로 신중.","direction":"one-way"}],"bets":[{"tag":"monetize","title":"구독료 단계적 인상","desc":"번들 기능 출시와 묶어 2단계로 인상, 코호트 A/B로 폭 검증.","status":"검토중","owner":"정우진","date":"2026-06-24","source":["2026-06-24"]},{"tag":"product","title":"번들 기능 선출시","desc":"인상 전 차별 기능을 먼저 제공해 '가치→가격' 순서 확보.","status":"진행중","owner":"이서연","date":"2026-06-24","source":["2026-06-24"]},{"tag":"platform","title":"가격 실험 인프라","desc":"코호트 분리·과금 실험을 상시 돌릴 수 있는 실험 플랫폼.","status":"검토중","owner":"최민석","date":"2026-05-20","source":["2026-06-24"]}],"risks":[{"level":"high","title":"인상 타이밍 미결","desc":"CEO(선언 먼저) vs CPO(가치 먼저) 이견이 미결 — 정렬 지체 시 실행 혼선.","status":"관찰중"},{"level":"high","title":"기존 구독자 이탈","desc":"차별 가치 없이 인상하면 리텐션 하락으로 직결.","status":"완화중","mitigation":"번들 기능 선출시로 가치 선행 확보"},{"level":"mid","title":"런웨이 압박","desc":"현금 14개월 — 실험 기간이 길면 재무 여유 감소.","status":"관찰중"}],"timeline":[{"date":"2026-05-20","meeting":"m1","change":"CEO 주도로 '빠른 인상' 방향 제시, CPO·영업 신중론 대립."},{"date":"2026-06-24","meeting":"m2","change":"이탈 데이터 확인 후 '번들 선출시 + 단계적 인상 + A/B 검증'으로 팀 절충안 수렴."}],"conflict_axes":[{"a":"정우진","b":"이서연","axis":"가격 인상의 순서 — 선언 먼저 vs 가치 먼저","shared_axiom":"구독자의 생애가치(LTV)가 회사의 전부다 — 인상 자체에는 둘 다 동의","a_side":"선언이 학습 장치 — 먼저 공표해 리소스를 모으고 시장 반응으로 배운다","b_side":"가치가 신뢰의 전제 — 번들 기능을 먼저 주고 받아야 신뢰가 유지된다","note":"6/24 회의에서 '번들 선출시 + 단계적 인상 + A/B 검증' 절충으로 수렴 — 축은 남아 다음 결정에서 재등장 예상","evidence_type":"direct"},{"a":"박도현","b":"김하늘","axis":"인상의 평가 기준 — 현금흐름 vs 이탈","shared_axiom":"급격한 변화는 위험하다 (둘 다 단계적 접근 지지)","a_side":"인상 = 런웨이를 늘리는 현금 카드","b_side":"인상 = 리텐션 해자를 갉아먹는 이탈 트리거","evidence_type":"direct"}],"traps":[{"who":"정우진","model_id":"declare-to-learn","desc":"선언이 반복되면 조직이 '또 말만'으로 학습해 신뢰 예산이 소진된다 — 이탈 데이터를 본 뒤 본인이 톤을 조정","state":"자각 중","evidence_type":"direct","source":"2026-06-24 회의"},{"who":"이서연","model_id":"value-before-price","desc":"완성도 대기가 길어지면 시장 타이밍을 놓친다 — 가치 선행론의 그림자","state":"미해결","evidence_type":"direct","source":"2026-06-24 회의"},{"who":"박도현","model_id":"runway-first","desc":"런웨이 방어가 과하면 성장 실험 자체를 막아 다음 라운드 스토리가 약해진다 — CEO의 문제 제기로 표면화","state":"미해결","evidence_type":"direct","source":"2026-05-20 회의"},{"who":"그로우캐피탈","desc":"'소진 규율만 본다'는 상(像)이 굳으면 성장 제안 자체를 자기검열하게 된다 — 투자사 본인 발언이 아닌 박도현의 해석","state":"미해결","evidence_type":"hearsay","source":"박도현 발언 (2026-06-24)"}]}
-</script>
+    <section id="s-map">
+      <div class="wrap">
+        <div class="sec-head">
+          <h2>멘탈모델 지도</h2>
+          <p>
+            범주로 묶은 사고의 골격. 버튼으로 좁혀 볼 수 있고, 실제 발언이
+            있으면 인용으로 표시.
+          </p>
+        </div>
+        <div class="filters" id="filters"></div>
+        <div class="grid g3" id="models-grid"></div>
+      </div>
+    </section>
 
-<script>
-(function(){
-  const EV={high:"근거 높음",mid:"근거 중간",low:"근거 부족"};
-  const $=id=>document.getElementById(id);
-  const esc=s=>String(s==null?"":s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
-  const REL_COLOR={tension:"#f26157",agree:"#34d17f","builds-on":"#6ea8ff",network:"#8b93a3"};
+    <section id="s-rel">
+      <div class="wrap">
+        <div class="sec-head">
+          <h2>관계와 대립</h2>
+          <p>
+            누가 누구와 합의·대립·발전하는지. 대립(빨강)이 위임·정렬의 핵심
+            신호다.
+          </p>
+        </div>
+        <div class="relbox">
+          <div>
+            <div class="graph">
+              <svg
+                id="relsvg"
+                viewBox="0 0 800 500"
+                preserveAspectRatio="xMidYMid meet"
+              ></svg>
+            </div>
+            <div class="legend">
+              <span><i style="background: #f26157"></i>대립 tension</span>
+              <span><i style="background: #34d17f"></i>합의 agree</span>
+              <span><i style="background: #6ea8ff"></i>발전 builds-on</span>
+              <span
+                ><i style="background: #8b93a3"></i>네트워크
+                (소개·협업·투자)</span
+              >
+            </div>
+          </div>
+          <div class="rellist" id="rel-list"></div>
+        </div>
+      </div>
+    </section>
 
-  function render(data){
-    const meta=data.meta||{}, people=data.people||[], models=data.models||[];
-    const relations=data.relations||[], network=data.network||[], bets=data.bets||[], risks=data.risks||[];
-    const axes=data.conflict_axes||[], traps=data.traps||[];
-    const timeline=data.timeline||[], meetings=data.meetings||[];
-    const modelById=Object.fromEntries(models.map(m=>[m.id,m]));
-    const holdersOf=m=>m.holders||m.people||[];               // v2 holders / v1 people
-    const isOrg=p=>(p.type||"person")==="org";
-    const persons=people.filter(p=>!isOrg(p)), orgs=people.filter(isOrg);
+    <section id="s-time">
+      <div class="wrap">
+        <div class="sec-head">
+          <h2>시간축 변화</h2>
+          <p>회의를 거치며 조직의 사고·방향이 어떻게 움직였는지.</p>
+        </div>
+        <div class="tl" id="timeline"></div>
+      </div>
+    </section>
 
-    // hero
-    $("h-title").textContent=meta.title||"멘탈모델 온톨로지";
-    $("h-sub").textContent=meta.subtitle||"";
-    const stats=[["인물",persons.length],["대상 조직",orgs.length],["멘탈모델",models.length],["관계",relations.length],["베팅",bets.length],["리스크",risks.length],["충돌 축",axes.length],["함정",traps.length]];
-    $("stats").innerHTML=stats.filter(s=>s[1]).map(s=>`<div class="stat"><div class="num">${s[1]}</div><div class="lab">${s[0]}</div></div>`).join("");
+    <section id="s-lineage">
+      <div class="wrap">
+        <div class="sec-head">
+          <h2>모델 계보</h2>
+          <p>
+            각 신념이 언제 처음 나와(막대 왼쪽) 언제까지 반복 관측됐는지(오른쪽
+            점) — 굵은 앰버일수록 반복으로 굳어진 패턴.
+          </p>
+        </div>
+        <div class="lnctrl" id="ln-ctrl"></div>
+        <div class="lnaxis" id="ln-axis"></div>
+        <div class="lnwrap" id="ln-wrap"></div>
+      </div>
+    </section>
 
-    // people (persons first; org cards show the models ABOUT them)
-    const card=p=>{
-      const org=isOrg(p);
-      const held=(p.models||[]).map(id=>(modelById[id]||{}).title||id);
-      const about=org?models.filter(m=>(m.about||[]).includes(p.name)).map(m=>{
-        const h=holdersOf(m); return esc(m.title)+(h.length?` <span class="who">— ${esc(h.join(", "))}의 시각</span>`:"");
-      }):[];
-      const items=org?about:held;
-      return `
-      <div class="pcard${org?' orgcard':''}">
-        <div class="ph"><div><h3>${esc(p.name)}${org?' <span class="orgbadge">대상</span>':''}</h3><div class="role">${esc(p.role||"")}</div></div>
-          <span class="ev ${p.evidence||'low'}">${EV[p.evidence||'low']}</span></div>
-        <div class="psum">${esc(p.summary||"")}</div>
-        <div class="lbl">${org?"이 대상에 대한 우리의 모델":"보유한 모델"}</div>
-        <ul>${items.map(t=>`<li><span class="dot"></span>${org?t:esc(t)}</li>`).join("")||'<li class="empty">없음</li>'}</ul>
-        ${(p.evolution&&p.evolution.length)?`<div class="evo"><div class="lbl">사고 변화</div>${p.evolution.map(e=>`<div class="row"><span class="d">${esc(e.date)}</span><span>${esc(e.note)}</span></div>`).join("")}</div>`:""}
-        ${p.playbook?`<div class="pb"><div class="lbl">개입 문법</div>${esc(p.playbook)}</div>`:""}
+    <section id="s-axes">
+      <div class="wrap">
+        <div class="sec-head">
+          <h2>충돌 축</h2>
+          <p>
+            공유하는 공리는 같고, 실행이 대칭으로 갈리는 지점 — 갈등의 공통
+            지반까지 함께 보여줍니다.
+          </p>
+        </div>
+        <div class="tensionmap" id="axes-map"></div>
+        <div id="axes-list"></div>
+      </div>
+    </section>
+
+    <section id="s-bets">
+      <div class="wrap">
+        <div class="sec-head">
+          <h2>전략 베팅과 리스크</h2>
+          <p>왼쪽은 실행 후보, 오른쪽은 이를 제약하는 리스크.</p>
+        </div>
+        <div class="br">
+          <div id="bets-col"></div>
+          <div id="risks-col"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="s-traps">
+      <div class="wrap">
+        <div class="sec-head">
+          <h2>함정 지도</h2>
+          <p>
+            각 사고방식이 만들어내는 그림자(부작용)와 그 상태. 초록 테두리는
+            해소된 함정, 흐린 항목은 전언·해석이라 조심해서 읽어야 하는 것.
+          </p>
+        </div>
+        <div id="traps-list"></div>
+      </div>
+    </section>
+
+    <footer>
+      <div class="wrap">
+        <p class="note" id="f-note"></p>
+        <ul class="srcs" id="f-srcs"></ul>
+        <div class="foot">
+          멘탈모델 온톨로지 뷰어 · objects.json 하나로 재생성 · 방법론: 탭제로
+          김태호 · 인용은 STT 교정본이라 원문과 다를 수 있음
+        </div>
+      </div>
+    </footer>
+
+    <script id="sample-data" type="application/json">{"meta": {"schema_version": 3, "title": "Acme 리더 멘탈모델 온톨로지 (샘플)", "org": "Acme", "subtitle": "가상의 구독 커머스 스타트업 Acme의 5~6월 전략·가격 회의 2건에서 리더들의 사고방식을 재구성한 예시 데이터.", "date_range": "2026-05-20 ~ 2026-06-24", "sensitivity": "L2", "confidence_note": "이 파일은 도구 시연용 가상 데이터입니다. 실제 인물·조직과 무관합니다. 인용문도 예시입니다.", "sources": ["2026-05-20 Acme 전략 회의 (녹취)", "2026-06-24 Acme 가격정책 회의 (녹취)"], "processed_source_ids": ["acme-rec-0520", "acme-rec-0624"]}, "meetings": [{"id": "m1", "date": "2026-05-20", "title": "전략 회의 — 다음 분기 방향", "source_id": "acme-rec-0520", "path": "transcripts/2026/2026-05/2026-05-20_전략회의-다음분기.md"}, {"id": "m2", "date": "2026-06-24", "title": "가격정책 회의 — 구독료 인상 여부", "source_id": "acme-rec-0624", "path": "transcripts/2026/2026-06/2026-06-24_가격정책-인상여부.md"}], "people": [{"name": "정우진", "type": "person", "role": "CEO", "org": "Acme", "summary": "시장에 먼저 신호를 던지고 반응으로 배우려는 속도 지향 창업자. 완성도보다 학습 속도를 우선하며, 팀이 스스로 답을 찾게 질문으로 이끈다.", "evidence": "high", "models": ["speed-over-polish", "declare-to-learn", "question-led"], "evolution": [{"date": "2026-05-20", "note": "무조건 빠른 인상 공표를 주장."}, {"date": "2026-06-24", "note": "이탈 데이터 보고 '단계적 인상'으로 톤 조정 — 속도 지향은 유지하되 리스크 수용."}], "playbook": "결론을 주지 말고 데이터를 먼저 보여줘라 — 이탈 수치 하나가 30분 설득보다 빨랐다. 속도 자체를 막지 말고 '더 빨리 배우는 방법'으로 프레이밍하면 수용한다."}, {"name": "이서연", "type": "person", "role": "CPO", "org": "Acme", "summary": "제품 완성도를 신뢰의 전제로 보는 프로덕트 리더. 차별 기능 없이 가격을 올리면 신뢰가 깨진다고 보고, 사용자 가치가 선행돼야 한다고 주장한다.", "evidence": "high", "models": ["value-before-price", "trust-is-fragile"], "evolution": [{"date": "2026-06-24", "note": "'번들 기능 먼저 출시 후 인상' 절충안을 제시하며 CEO와 접점 형성."}], "playbook": "'언제 올리냐'가 아니라 '무엇을 먼저 주냐'로 질문을 바꿔라. 가치 선행이 보장되면 속도에도 협조적이다."}, {"name": "박도현", "type": "person", "role": "CFO", "org": "Acme", "summary": "현금흐름과 런웨이를 판단의 축으로 두는 보수적 재무 리더. 성장도 현금 건전성 안에서만 유효하다고 본다.", "evidence": "mid", "models": ["runway-first", "growth-within-cash", "investor-discipline-lens"], "playbook": "모든 제안에 런웨이 영향을 한 줄 붙여라. 숫자가 있으면 보수성이 협상 가능해진다."}, {"name": "김하늘", "type": "person", "role": "영업총괄", "org": "Acme", "summary": "기존 고객 이탈을 최우선 리스크로 보는 신중론자. 채널·리텐션 관점에서 급격한 변화에 브레이크를 건다.", "evidence": "mid", "models": ["churn-first", "retention-moat"], "playbook": "현장의 언어('배신감')를 데이터로 번역해주면 가장 강력한 아군이 된다."}, {"name": "최민석", "type": "person", "role": "CTO", "org": "Acme", "summary": "실험 인프라로 의사결정을 대체하려는 기술 리더. '논쟁 대신 A/B로 확인하자'는 데이터 우선 관점.", "evidence": "mid", "models": ["experiment-over-debate"], "playbook": "논쟁이 길어지면 실험 설계를 맡겨라 — '2주면 답 나온다'가 이 사람의 해결 문법이다."}, {"name": "그로우캐피탈", "type": "org", "role": "시리즈B 리드 투자사", "summary": "Acme의 리드 투자사. 리더들의 발언에서 '성장률만큼 소진 규율을 본다'는 상(像)으로 등장 — 투자사 자신의 발언이 아니므로 추정(mid) 이상으로 올리지 않는다.", "evidence": "mid", "models": []}], "models": [{"id": "speed-over-polish", "category": "전략", "title": "완성도보다 학습 속도가 먼저다", "desc": "완벽히 다듬기보다 빠르게 내보내 시장 반응으로 배운다. 속도가 곧 정보다.", "evidence": "high", "holders": ["정우진"], "quote": "다 갖추고 내면 이미 늦어요. 일단 던지고 반응 보고 고치는 게 정보가 제일 빨라요.", "count": 2, "first_seen": "2026-05-20", "last_seen": "2026-06-24", "related": ["declare-to-learn"], "evidence_type": "direct"}, {"id": "declare-to-learn", "category": "제품", "title": "선언이 곧 학습 장치다", "desc": "가격 인상을 먼저 공표해 내부 리소스를 모으고 고객 반응을 조기에 확인한다.", "evidence": "high", "holders": ["정우진"], "quote": "인상한다고 먼저 말해두면 팀이 거기에 맞춰 움직이고, 나갈 사람은 지금 갈려요.", "count": 1, "first_seen": "2026-05-20", "related": ["speed-over-polish", "value-before-price"], "evidence_type": "direct"}, {"id": "question-led", "category": "조직", "title": "답을 주지 않고 질문으로 이끈다", "desc": "결론을 박지 않고 질문을 던져 리더들이 스스로 패턴을 찾게 한다.", "evidence": "high", "holders": ["정우진"], "quote": "제가 정답을 말하면 다들 거기서 멈춰요. 그래서 '그럼 이건 어떻게 될까요' 하고 되묻죠.", "count": 1, "first_seen": "2026-05-20", "evidence_type": "direct"}, {"id": "value-before-price", "category": "제품", "title": "가치가 가격보다 먼저다", "desc": "차별 기능·사용자 가치가 선행되지 않으면 인상은 신뢰를 깬다. 번들 기능 출시 후 과금해야 설득력이 있다.", "evidence": "high", "holders": ["이서연"], "quote": "지금 올리면 '뭐가 좋아졌는데?' 소리 들어요. 줄 걸 먼저 주고 받아야죠.", "count": 2, "first_seen": "2026-05-20", "last_seen": "2026-06-24", "related": ["trust-is-fragile", "declare-to-learn"], "evidence_type": "direct"}, {"id": "trust-is-fragile", "category": "제품", "title": "신뢰는 깨지기 쉽다", "desc": "한 번 잃은 구독자 신뢰는 회복이 비싸다. 변화는 신뢰 예산 안에서 집행한다.", "evidence": "mid", "holders": ["이서연"], "count": 1, "first_seen": "2026-05-20", "related": ["churn-first"], "evidence_type": "direct"}, {"id": "runway-first", "category": "재무", "title": "런웨이가 모든 결정의 상한이다", "desc": "현금 소진 속도가 전략의 경계. 성장도 런웨이 안에서만 유효하다.", "evidence": "mid", "holders": ["박도현"], "quote": "재밌는 실험 다 좋은데, 우리 통장이 14개월이에요. 거기서 시작해요.", "count": 1, "first_seen": "2026-05-20", "related": ["growth-within-cash"], "evidence_type": "direct"}, {"id": "growth-within-cash", "category": "재무", "title": "현금 건전성 안에서만 성장한다", "desc": "성장률보다 현금 회수 주기를 먼저 본다. 인상은 현금흐름 개선 카드로도 유효.", "evidence": "mid", "holders": ["박도현"], "count": 1, "first_seen": "2026-06-24", "related": ["runway-first"], "evidence_type": "direct"}, {"id": "investor-discipline-lens", "category": "투자", "title": "투자자는 성장률만큼 소진 규율을 본다", "desc": "다음 라운드 관점에서 번레이트 규율이 성장 스토리의 신뢰도를 좌우한다고 본다. 그로우캐피탈에 '대한' 박도현의 믿음 — 투자사 자신의 발언이 아니므로 mid.", "evidence": "mid", "holders": ["박도현"], "about": ["그로우캐피탈"], "quote": "그로우 쪽은 미팅 열면 우리 소진 곡선부터 물어볼 거예요.", "count": 1, "first_seen": "2026-06-24", "related": ["runway-first"], "evidence_type": "hearsay"}, {"id": "churn-first", "category": "리스크", "title": "이탈을 최우선으로 본다", "desc": "급격한 가격 변화는 기존 고객 이탈로 직결된다. 영향 최소 범위에서 단계적으로.", "evidence": "mid", "holders": ["김하늘"], "quote": "숫자로만 보면 인상이 맞는데, 현장은 '배신감'이라고 말해요. 그게 이탈이에요.", "count": 1, "first_seen": "2026-06-24", "related": ["retention-moat", "trust-is-fragile"], "evidence_type": "direct"}, {"id": "retention-moat", "category": "전략", "title": "리텐션이 진짜 해자다", "desc": "신규 획득보다 재구독율이 방어벽. 가격은 리텐션을 해치지 않는 선에서 조정.", "evidence": "mid", "holders": ["김하늘"], "count": 1, "first_seen": "2026-06-24", "evidence_type": "direct"}, {"id": "experiment-over-debate", "category": "기술", "title": "논쟁 대신 실험으로 결정한다", "desc": "의견 충돌은 A/B 테스트로 푼다. 인상폭도 코호트 실험으로 검증 후 확정.", "evidence": "mid", "holders": ["최민석"], "quote": "이거 회의로 30분 싸울 게 아니라, 두 그룹 나눠서 2주면 답 나와요.", "count": 1, "first_seen": "2026-06-24", "evidence_type": "direct"}], "network": [{"a": "이서연", "b": "정우진", "kind": "소개", "since": "2024-11-01", "note": "SaaS 밋업에서 이서연이 정우진을 투자자들에게 소개."}, {"a": "박도현", "b": "그로우캐피탈", "kind": "투자", "since": "2025-08-01", "note": "시리즈B 리드 — 박도현이 창구."}], "relations": [{"from": "정우진", "to": "이서연", "type": "tension", "topic": "인상 타이밍", "note": "CEO(선언 먼저) vs CPO(가치 먼저) — 핵심 대립."}, {"from": "이서연", "to": "김하늘", "type": "agree", "topic": "신뢰·이탈", "note": "둘 다 급격한 변화의 신뢰 훼손을 경계."}, {"from": "박도현", "to": "정우진", "type": "builds-on", "topic": "인상=현금 카드", "note": "CFO가 CEO의 인상론에 '현금흐름 개선' 논거를 더함."}, {"from": "최민석", "to": "정우진", "type": "builds-on", "topic": "실험으로 속도내기", "note": "CTO가 CEO의 속도론을 A/B 실험 방법론으로 구체화."}, {"from": "김하늘", "to": "박도현", "type": "tension", "topic": "성장 vs 이탈", "note": "재무는 인상 찬성 쪽, 영업은 이탈 우려로 신중.", "direction": "one-way"}], "bets": [{"tag": "monetize", "title": "구독료 단계적 인상", "desc": "번들 기능 출시와 묶어 2단계로 인상, 코호트 A/B로 폭 검증.", "status": "검토중", "owner": "정우진", "date": "2026-06-24", "source": ["2026-06-24"]}, {"tag": "product", "title": "번들 기능 선출시", "desc": "인상 전 차별 기능을 먼저 제공해 '가치→가격' 순서 확보.", "status": "진행중", "owner": "이서연", "date": "2026-06-24", "source": ["2026-06-24"]}, {"tag": "platform", "title": "가격 실험 인프라", "desc": "코호트 분리·과금 실험을 상시 돌릴 수 있는 실험 플랫폼.", "status": "검토중", "owner": "최민석", "date": "2026-05-20", "source": ["2026-06-24"]}], "risks": [{"level": "high", "title": "인상 타이밍 미결", "desc": "CEO(선언 먼저) vs CPO(가치 먼저) 이견이 미결 — 정렬 지체 시 실행 혼선.", "status": "관찰중"}, {"level": "high", "title": "기존 구독자 이탈", "desc": "차별 가치 없이 인상하면 리텐션 하락으로 직결.", "status": "완화중", "mitigation": "번들 기능 선출시로 가치 선행 확보"}, {"level": "mid", "title": "런웨이 압박", "desc": "현금 14개월 — 실험 기간이 길면 재무 여유 감소.", "status": "관찰중"}], "timeline": [{"date": "2026-05-20", "meeting": "m1", "change": "CEO 주도로 '빠른 인상' 방향 제시, CPO·영업 신중론 대립."}, {"date": "2026-06-24", "meeting": "m2", "change": "이탈 데이터 확인 후 '번들 선출시 + 단계적 인상 + A/B 검증'으로 팀 절충안 수렴."}], "conflict_axes": [{"a": "정우진", "b": "이서연", "axis": "가격 인상의 순서 — 선언 먼저 vs 가치 먼저", "shared_axiom": "구독자의 생애가치(LTV)가 회사의 전부다 — 인상 자체에는 둘 다 동의", "a_side": "선언이 학습 장치 — 먼저 공표해 리소스를 모으고 시장 반응으로 배운다", "b_side": "가치가 신뢰의 전제 — 번들 기능을 먼저 주고 받아야 신뢰가 유지된다", "note": "6/24 회의에서 '번들 선출시 + 단계적 인상 + A/B 검증' 절충으로 수렴 — 축은 남아 다음 결정에서 재등장 예상", "evidence_type": "direct"}, {"a": "박도현", "b": "김하늘", "axis": "인상의 평가 기준 — 현금흐름 vs 이탈", "shared_axiom": "급격한 변화는 위험하다 (둘 다 단계적 접근 지지)", "a_side": "인상 = 런웨이를 늘리는 현금 카드", "b_side": "인상 = 리텐션 해자를 갉아먹는 이탈 트리거", "evidence_type": "direct"}], "traps": [{"who": "정우진", "model_id": "declare-to-learn", "desc": "선언이 반복되면 조직이 '또 말만'으로 학습해 신뢰 예산이 소진된다 — 이탈 데이터를 본 뒤 본인이 톤을 조정", "state": "자각 중", "evidence_type": "direct", "source": "2026-06-24 회의"}, {"who": "이서연", "model_id": "value-before-price", "desc": "완성도 대기가 길어지면 시장 타이밍을 놓친다 — 가치 선행론의 그림자", "state": "미해결", "evidence_type": "direct", "source": "2026-06-24 회의"}, {"who": "박도현", "model_id": "runway-first", "desc": "런웨이 방어가 과하면 성장 실험 자체를 막아 다음 라운드 스토리가 약해진다 — CEO의 문제 제기로 표면화", "state": "미해결", "evidence_type": "direct", "source": "2026-05-20 회의"}, {"who": "그로우캐피탈", "desc": "'소진 규율만 본다'는 상(像)이 굳으면 성장 제안 자체를 자기검열하게 된다 — 투자사 본인 발언이 아닌 박도현의 해석", "state": "미해결", "evidence_type": "hearsay", "source": "박도현 발언 (2026-06-24)"}], "meta_patterns": [{"id": "speed-learning", "title": "속도·학습 우선", "desc": "완성도보다 빠르게 내보내 반응으로 배운다.", "model_ids": ["speed-over-polish", "declare-to-learn", "experiment-over-debate"], "people": ["정우진", "최민석"], "top_evidence": "high", "count": 3}, {"id": "value-trust", "title": "가치·신뢰 우선", "desc": "가치를 먼저 주고, 신뢰 예산 안에서 변화를 집행한다.", "model_ids": ["value-before-price", "trust-is-fragile", "churn-first", "retention-moat"], "people": ["이서연", "김하늘"], "top_evidence": "high", "count": 4}, {"id": "fin-discipline", "title": "재무 규율", "desc": "성장은 런웨이·현금 건전성 안에서만 유효하다.", "model_ids": ["runway-first", "growth-within-cash", "investor-discipline-lens"], "people": ["박도현"], "top_evidence": "mid", "count": 3}]}</script>
+
+    <script>
+      (function () {
+        const EV = { high: "근거 높음", mid: "근거 중간", low: "근거 부족" };
+        const $ = (id) => document.getElementById(id);
+        const esc = (s) =>
+          String(s == null ? "" : s).replace(
+            /[&<>]/g,
+            (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c],
+          );
+        const REL_COLOR = {
+          tension: "#f26157",
+          agree: "#34d17f",
+          "builds-on": "#6ea8ff",
+          network: "#8b93a3",
+        };
+
+        function render(data) {
+          const meta = data.meta || {},
+            people = data.people || [],
+            models = data.models || [];
+          const relations = data.relations || [],
+            network = data.network || [],
+            bets = data.bets || [],
+            risks = data.risks || [];
+          const axes = data.conflict_axes || [],
+            traps = data.traps || [];
+          const timeline = data.timeline || [],
+            meetings = data.meetings || [];
+          const modelById = Object.fromEntries(models.map((m) => [m.id, m]));
+          const holdersOf = (m) => m.holders || m.people || []; // v2 holders / v1 people
+          const isOrg = (p) => (p.type || "person") === "org";
+          const persons = people.filter((p) => !isOrg(p)),
+            orgs = people.filter(isOrg);
+
+          // hero
+          $("h-title").textContent = meta.title || "멘탈모델 온톨로지";
+          $("h-sub").textContent = meta.subtitle || "";
+          const stats = [
+            ["인물", persons.length],
+            ["대상 조직", orgs.length],
+            ["멘탈모델", models.length],
+            ["관계", relations.length],
+            ["베팅", bets.length],
+            ["리스크", risks.length],
+            ["충돌 축", axes.length],
+            ["함정", traps.length],
+          ];
+          $("stats").innerHTML = stats
+            .filter((s) => s[1])
+            .map(
+              (s) =>
+                `<div class="stat"><div class="num">${s[1]}</div><div class="lab">${s[0]}</div></div>`,
+            )
+            .join("");
+
+          // people (persons first; org cards show the models ABOUT them)
+          const card = (p) => {
+            const org = isOrg(p);
+            const held = (p.models || []).map(
+              (id) => (modelById[id] || {}).title || id,
+            );
+            const about = org
+              ? models
+                  .filter((m) => (m.about || []).includes(p.name))
+                  .map((m) => {
+                    const h = holdersOf(m);
+                    return (
+                      esc(m.title) +
+                      (h.length
+                        ? ` <span class="who">— ${esc(h.join(", "))}의 시각</span>`
+                        : "")
+                    );
+                  })
+              : [];
+            const items = org ? about : held;
+            return `
+      <div class="pcard${org ? " orgcard" : ""}">
+        <div class="ph"><div><h3>${esc(p.name)}${org ? ' <span class="orgbadge">대상</span>' : ""}</h3><div class="role">${esc(p.role || "")}</div></div>
+          <span class="ev ${p.evidence || "low"}">${EV[p.evidence || "low"]}</span></div>
+        <div class="psum">${esc(p.summary || "")}</div>
+        <div class="lbl">${org ? "이 대상에 대한 우리의 모델" : "보유한 모델"}</div>
+        <ul>${items.map((t) => `<li><span class="dot"></span>${org ? t : esc(t)}</li>`).join("") || '<li class="empty">없음</li>'}</ul>
+        ${p.evolution && p.evolution.length ? `<div class="evo"><div class="lbl">사고 변화</div>${p.evolution.map((e) => `<div class="row"><span class="d">${esc(e.date)}</span><span>${esc(e.note)}</span></div>`).join("")}</div>` : ""}
+        ${p.playbook ? `<div class="pb"><div class="lbl">개입 문법</div>${esc(p.playbook)}</div>` : ""}
       </div>`;
-    };
-    $("people-grid").innerHTML=[...persons,...orgs].map(card).join("");
+          };
+          $("people-grid").innerHTML = [...persons, ...orgs].map(card).join("");
 
-    // models + filters
-    const cats=["전체",...[...new Set(models.map(m=>m.category).filter(Boolean))]];
-    let active="전체";
-    const drawModels=()=>{
-      const list=active==="전체"?models:models.filter(m=>m.category===active);
-      $("models-grid").innerHTML=list.map(m=>`
+          // models + filters
+          const cats = [
+            "전체",
+            ...[...new Set(models.map((m) => m.category).filter(Boolean))],
+          ];
+          let active = "전체";
+          const drawModels = () => {
+            const list =
+              active === "전체"
+                ? models
+                : models.filter((m) => m.category === active);
+            $("models-grid").innerHTML = list
+              .map(
+                (m) => `
         <div class="mcard">
-          <div class="mh"><span class="cat">${esc(m.category||"")}</span><span class="ev ${m.evidence||'low'}">${EV[m.evidence||'low']}</span>${m.evidence_type==='hearsay'?`<span class="ev hearsay-badge">전언</span>`:m.evidence_type==='reference'?`<span class="ev hearsay-badge">참조</span>`:''}</div>
+          <div class="mh"><span class="cat">${esc(m.category || "")}</span><span class="ev ${m.evidence || "low"}">${EV[m.evidence || "low"]}</span>${m.evidence_type === "hearsay" ? `<span class="ev hearsay-badge">전언</span>` : m.evidence_type === "reference" ? `<span class="ev hearsay-badge">참조</span>` : ""}</div>
           <h4>${esc(m.title)}</h4>
-          <p class="mdesc">${esc(m.desc||"")}</p>
-          ${m.quote?`<div class="quote">“${esc(m.quote)}”</div>`:""}
-          <div class="ptags">${holdersOf(m).map(n=>`<span class="ptag">${esc(n)}</span>`).join("")}${(m.about||[]).map(n=>`<span class="ptag about">→ ${esc(n)}</span>`).join("")}</div>
-        </div>`).join("");
-    };
-    $("filters").innerHTML=cats.map((c,i)=>`<button data-c="${esc(c)}" class="${i===0?'on':''}">${esc(c)}</button>`).join("");
-    $("filters").onclick=e=>{const b=e.target.closest("button");if(!b)return;active=b.dataset.c;[...$("filters").children].forEach(x=>x.classList.toggle("on",x===b));drawModels();};
-    drawModels();
+          <p class="mdesc">${esc(m.desc || "")}</p>
+          ${m.quote ? `<div class="quote">“${esc(m.quote)}”</div>` : ""}
+          <div class="ptags">${holdersOf(m)
+            .map((n) => `<span class="ptag">${esc(n)}</span>`)
+            .join(
+              "",
+            )}${(m.about || []).map((n) => `<span class="ptag about">→ ${esc(n)}</span>`).join("")}</div>
+        </div>`,
+              )
+              .join("");
+          };
+          $("filters").innerHTML = cats
+            .map(
+              (c, i) =>
+                `<button data-c="${esc(c)}" class="${i === 0 ? "on" : ""}">${esc(c)}</button>`,
+            )
+            .join("");
+          $("filters").onclick = (e) => {
+            const b = e.target.closest("button");
+            if (!b) return;
+            active = b.dataset.c;
+            [...$("filters").children].forEach((x) =>
+              x.classList.toggle("on", x === b),
+            );
+            drawModels();
+          };
+          drawModels();
 
-    // relations (사고) + network (사회적 관계)
-    const relSec=$("s-rel");
-    if((relations.length||network.length) && people.length){
-      relSec.classList.remove("hidden");
-      drawGraph(people,[...relations,...network.map(n=>({from:n.a,to:n.b,type:"network"}))]);
-      $("rel-list").innerHTML=relations.map(r=>`
-        <div class="relrow"><div class="top"><span class="reltype ${r.type}">${r.type==='tension'?'대립':r.type==='agree'?'합의':'발전'}</span>
-          ${esc(r.from)} ${r.direction==='one-way'?'→':(r.type==='tension'?'↔':'→')} ${esc(r.to)}${r.direction==='one-way'?' <span style="font-size:11px;color:#8b93a3">(일방 인식)</span>':''}</div>
-          <div class="rn"><b>${esc(r.topic||"")}</b> — ${esc(r.note||"")}</div></div>`).join("")
-        +network.map(n=>`
-        <div class="relrow"><div class="top"><span class="reltype network">${esc(n.kind||'관계')}</span>
+          // relations (사고) + network (사회적 관계)
+          const relSec = $("s-rel");
+          if ((relations.length || network.length) && people.length) {
+            relSec.classList.remove("hidden");
+            drawGraph(people, [
+              ...relations,
+              ...network.map((n) => ({ from: n.a, to: n.b, type: "network" })),
+            ]);
+            $("rel-list").innerHTML =
+              relations
+                .map(
+                  (r) => `
+        <div class="relrow"><div class="top"><span class="reltype ${r.type}">${r.type === "tension" ? "대립" : r.type === "agree" ? "합의" : "발전"}</span>
+          ${esc(r.from)} ${r.direction === "one-way" ? "→" : r.type === "tension" ? "↔" : "→"} ${esc(r.to)}${r.direction === "one-way" ? ' <span style="font-size:11px;color:#8b93a3">(일방 인식)</span>' : ""}</div>
+          <div class="rn"><b>${esc(r.topic || "")}</b> — ${esc(r.note || "")}</div></div>`,
+                )
+                .join("") +
+              network
+                .map(
+                  (n) => `
+        <div class="relrow"><div class="top"><span class="reltype network">${esc(n.kind || "관계")}</span>
           ${esc(n.a)} ↔ ${esc(n.b)}</div>
-          <div class="rn">${n.since?`<b>${esc(n.since)}</b> — `:""}${esc(n.note||"")}</div></div>`).join("");
-    } else relSec.classList.add("hidden");
+          <div class="rn">${n.since ? `<b>${esc(n.since)}</b> — ` : ""}${esc(n.note || "")}</div></div>`,
+                )
+                .join("");
+          } else relSec.classList.add("hidden");
 
-    // timeline (meetings + timeline changes)
-    const tSec=$("s-time");
-    const tItems=[];
-    if(timeline.length){
-      timeline.forEach(t=>{const mt=meetings.find(m=>m.id===t.meeting);tItems.push({date:t.date,title:mt?mt.title:"",change:t.change});});
-    } else if(meetings.length>1){
-      meetings.forEach(m=>tItems.push({date:m.date,title:m.title,change:""}));
-    }
-    if(tItems.length){
-      tSec.classList.remove("hidden");
-      tItems.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
-      $("timeline").innerHTML=tItems.map(t=>`<div class="item"><div class="date">${esc(t.date)}</div>${t.title?`<div class="ttl">${esc(t.title)}</div>`:""}${t.change?`<div class="ch">${esc(t.change)}</div>`:""}</div>`).join("");
-    } else tSec.classList.add("hidden");
+          // timeline (meetings + timeline changes)
+          const tSec = $("s-time");
+          const tItems = [];
+          if (timeline.length) {
+            timeline.forEach((t) => {
+              const mt = meetings.find((m) => m.id === t.meeting);
+              tItems.push({
+                date: t.date,
+                title: mt ? mt.title : "",
+                change: t.change,
+              });
+            });
+          } else if (meetings.length > 1) {
+            meetings.forEach((m) =>
+              tItems.push({ date: m.date, title: m.title, change: "" }),
+            );
+          }
+          if (tItems.length) {
+            tSec.classList.remove("hidden");
+            tItems.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+            $("timeline").innerHTML = tItems
+              .map(
+                (t) =>
+                  `<div class="item"><div class="date">${esc(t.date)}</div>${t.title ? `<div class="ttl">${esc(t.title)}</div>` : ""}${t.change ? `<div class="ch">${esc(t.change)}</div>` : ""}</div>`,
+              )
+              .join("");
+          } else tSec.classList.add("hidden");
 
-    // v3: conflict axes
-    const axSec=$("s-axes");
-    if(axes.length){
-      axSec.classList.remove("hidden");
-      $("axes-list").innerHTML=axes.map(x=>`
+          // v3: conflict axes
+          const axSec = $("s-axes");
+          if (axes.length) {
+            axSec.classList.remove("hidden");
+            // tension map — people as nodes, conflict axes as red edges
+            (() => {
+              const inv = [...new Set(axes.flatMap((x) => [x.a, x.b]))];
+              const trunc = (s, n) => {
+                s = String(s || "");
+                return s.length > n ? s.slice(0, n - 1) + "…" : s;
+              };
+              const W = 640,
+                H = Math.max(300, 180 + inv.length * 8),
+                cx = W / 2,
+                cy = H / 2,
+                R = Math.min(cx, cy) - 60;
+              const pos = {};
+              inv.forEach((nm, i) => {
+                const ang = (-90 + (i * 360) / inv.length) * (Math.PI / 180);
+                pos[nm] = {
+                  x: cx + R * Math.cos(ang),
+                  y: cy + R * Math.sin(ang),
+                };
+              });
+              const edges = axes
+                .map((x) => {
+                  const A = pos[x.a],
+                    B = pos[x.b];
+                  const mx = (A.x + B.x) / 2,
+                    my = (A.y + B.y) / 2;
+                  return `<line x1="${A.x.toFixed(0)}" y1="${A.y.toFixed(0)}" x2="${B.x.toFixed(0)}" y2="${B.y.toFixed(0)}" stroke="#ff6b8a" stroke-width="2" opacity="0.7"><title>${esc(x.axis || "")}</title></line><text x="${mx.toFixed(0)}" y="${my.toFixed(0)}" text-anchor="middle" font-size="10" fill="#9aa0aa">${esc(trunc(x.axis, 14))}</text>`;
+                })
+                .join("");
+              const nds = inv
+                .map(
+                  (nm) =>
+                    `<g><circle cx="${pos[nm].x.toFixed(0)}" cy="${pos[nm].y.toFixed(0)}" r="22" fill="#232734" stroke="#ff6b8a" stroke-width="2"/><text x="${pos[nm].x.toFixed(0)}" y="${(pos[nm].y + 4).toFixed(0)}" text-anchor="middle" font-size="11" fill="#e8eaed">${esc(trunc(nm, 5))}</text></g>`,
+                )
+                .join("");
+              $("axes-map").innerHTML =
+                `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">${edges}${nds}</svg>`;
+            })();
+            $("axes-list").innerHTML = axes
+              .map(
+                (x) => `
         <div class="axisrow">
           <div class="axttl">${esc(x.a)} ⟷ ${esc(x.b)} · ${esc(x.axis)}</div>
-          ${x.shared_axiom?`<div class="axiom"><b>공유 공리</b> — ${esc(x.shared_axiom)}</div>`:""}
+          ${x.shared_axiom ? `<div class="axiom"><b>공유 공리</b> — ${esc(x.shared_axiom)}</div>` : ""}
           <div class="sides">
-            <div class="side"><div class="who">${esc(x.a)}</div>${esc(x.a_side||"")}</div>
-            <div class="side"><div class="who">${esc(x.b)}</div>${esc(x.b_side||"")}</div>
+            <div class="side"><div class="who">${esc(x.a)}</div>${esc(x.a_side || "")}</div>
+            <div class="side"><div class="who">${esc(x.b)}</div>${esc(x.b_side || "")}</div>
           </div>
-          ${x.note?`<div class="axnote">${esc(x.note)}</div>`:""}
-        </div>`).join("");
-    } else axSec.classList.add("hidden");
+          ${x.note ? `<div class="axnote">${esc(x.note)}</div>` : ""}
+        </div>`,
+              )
+              .join("");
+          } else axSec.classList.add("hidden");
 
-    // v3: traps
-    const tpSec=$("s-traps");
-    if(traps.length){
-      tpSec.classList.remove("hidden");
-      $("traps-list").innerHTML=traps.map(t=>`
-        <div class="traprow${t.state==='해소됨'?' resolved':''}${t.evidence_type==='hearsay'?' hearsay':''}">
+          // v3: traps
+          const tpSec = $("s-traps");
+          if (traps.length) {
+            tpSec.classList.remove("hidden");
+            $("traps-list").innerHTML = traps
+              .map(
+                (t) => `
+        <div class="traprow${t.state === "해소됨" ? " resolved" : ""}${t.evidence_type === "hearsay" ? " hearsay" : ""}">
           <div class="top"><span class="who">${esc(t.who)}</span>
-            ${t.state?`<span class="st">${esc(t.state)}</span>`:""}
-            ${t.evidence_type==='hearsay'?`<span class="hs">전언·해석</span>`:""}</div>
+            ${t.state ? `<span class="st">${esc(t.state)}</span>` : ""}
+            ${t.evidence_type === "hearsay" ? `<span class="hs">전언·해석</span>` : ""}</div>
           <p>${esc(t.desc)}</p>
-        </div>`).join("");
-    } else tpSec.classList.add("hidden");
+        </div>`,
+              )
+              .join("");
+          } else tpSec.classList.add("hidden");
 
-    // bets & risks
-    const bSec=$("s-bets");
-    if(bets.length||risks.length){
-      bSec.classList.remove("hidden");
-      $("bets-col").innerHTML=bets.length?bets.map(b=>`<div class="betrow"><span class="tag">${esc(b.tag||"bet")}</span>${b.status?`<span class="tag st">${esc(b.status)}${b.owner?` · ${esc(b.owner)}`:""}</span>`:""}<h4>${esc(b.title)}</h4><p>${esc(b.desc||"")}</p></div>`).join(""):'<p class="empty">베팅 없음</p>';
-      $("risks-col").innerHTML=risks.length?risks.map(r=>`<div class="riskrow ${r.level||'mid'}"><h4>${esc(r.title)}</h4><p>${esc(r.desc||"")}</p></div>`).join(""):'<p class="empty">리스크 없음</p>';
-    } else bSec.classList.add("hidden");
+          // bets & risks
+          const bSec = $("s-bets");
+          if (bets.length || risks.length) {
+            bSec.classList.remove("hidden");
+            $("bets-col").innerHTML = bets.length
+              ? bets
+                  .map(
+                    (b) =>
+                      `<div class="betrow"><span class="tag">${esc(b.tag || "bet")}</span>${b.status ? `<span class="tag st">${esc(b.status)}${b.owner ? ` · ${esc(b.owner)}` : ""}</span>` : ""}<h4>${esc(b.title)}</h4><p>${esc(b.desc || "")}</p></div>`,
+                  )
+                  .join("")
+              : '<p class="empty">베팅 없음</p>';
+            $("risks-col").innerHTML = risks.length
+              ? risks
+                  .map(
+                    (r) =>
+                      `<div class="riskrow ${r.level || "mid"}"><h4>${esc(r.title)}</h4><p>${esc(r.desc || "")}</p></div>`,
+                  )
+                  .join("")
+              : '<p class="empty">리스크 없음</p>';
+          } else bSec.classList.add("hidden");
 
-    // nav (only visible sections)
-    const secs=[["s-people","사람별 모델"],["s-map","멘탈모델 지도"],["s-rel","관계·대립"],["s-time","시간축"],["s-bets","베팅·리스크"]];
-    $("navbtns").innerHTML=secs.filter(s=>!$(s[0]).classList.contains("hidden")).map(s=>`<button data-go="${s[0]}">${s[1]}</button>`).join("");
-    $("navbtns").onclick=e=>{const b=e.target.closest("button");if(b)$(b.dataset.go).scrollIntoView({behavior:"smooth"});};
+          // meta-patterns (상위 테마)
+          const metaPatterns = data.meta_patterns || [];
+          const mSec = $("s-meta");
+          if (metaPatterns.length) {
+            mSec.classList.remove("hidden");
+            $("meta-grid").innerHTML = metaPatterns
+              .map((t) => {
+                const titles = (t.model_ids || [])
+                  .map((id) => (modelById[id] || {}).title)
+                  .filter(Boolean);
+                return `<div class="mpcard">
+                  <div class="mph"><h3>${esc(t.title)}</h3><span class="cnt">${t.count || titles.length}개 모델</span></div>
+                  <div class="mpd">${esc(t.desc || "")}</div>
+                  <div class="mpp">${(t.people || []).map((n) => `<span>${esc(n)}</span>`).join("")}</div>
+                  <ul>${titles.map((x) => `<li><span class="d">·</span>${esc(x)}</li>`).join("")}</ul>
+                </div>`;
+              })
+              .join("");
+          } else mSec.classList.add("hidden");
 
-    // footer
-    $("f-note").textContent=meta.confidence_note||"";
-    $("f-srcs").innerHTML=(meta.sources||[]).map(s=>`<li>${esc(s)}</li>`).join("");
-  }
+          // lineage (모델 계보 — first_seen→last_seen 궤적)
+          const lSec = $("s-lineage");
+          const dated = models.filter((m) => m.first_seen);
+          if (dated.length) {
+            lSec.classList.remove("hidden");
+            const dnum = (s) => {
+              const [y, mo, d] = (s || "").split("-").map(Number);
+              return y ? y * 372 + (mo - 1) * 31 + (d || 1) : null;
+            };
+            const allNums = dated
+              .flatMap((m) => [
+                dnum(m.first_seen),
+                dnum(m.last_seen || m.first_seen),
+              ])
+              .filter((x) => x != null);
+            const minD = Math.min(...allNums),
+              maxD = Math.max(...allNums),
+              span = Math.max(1, maxD - minD);
+            const fmt = (s) => (s || "").slice(0, 7);
+            // person filter — persons holding the most models first
+            const holderCount = {};
+            dated.forEach((m) =>
+              holdersOf(m).forEach(
+                (h) => (holderCount[h] = (holderCount[h] || 0) + 1),
+              ),
+            );
+            const topHolders = Object.entries(holderCount)
+              .sort((a, b) => b[1] - a[1])
+              .map((x) => x[0]);
+            let lnActive = topHolders[0] || "전체";
+            const drawLineage = () => {
+              const list = dated
+                .filter(
+                  (m) => lnActive === "전체" || holdersOf(m).includes(lnActive),
+                )
+                .sort((a, b) => dnum(a.first_seen) - dnum(b.first_seen));
+              $("ln-axis").innerHTML =
+                `<span>${fmt(dated.reduce((a, m) => (dnum(m.first_seen) < dnum(a) ? m.first_seen : a), "9999-99"))}</span><span>${fmt(dated.reduce((a, m) => (dnum(m.last_seen || m.first_seen) > dnum(a) ? m.last_seen || m.first_seen : a), "0"))}</span>`;
+              $("ln-wrap").innerHTML = list
+                .map((m) => {
+                  const f = dnum(m.first_seen),
+                    l = dnum(m.last_seen || m.first_seen);
+                  const left = ((f - minD) / span) * 100,
+                    w = Math.max(1.2, ((l - f) / span) * 100);
+                  const ev =
+                    m.evidence === "high"
+                      ? "high"
+                      : m.evidence === "mid"
+                        ? "mid"
+                        : "";
+                  return `<div class="lnrow" title="${esc(m.title)} (${esc(m.first_seen)}~${esc(m.last_seen || m.first_seen)}, ${m.count || 1}회)">
+                    <span class="lnlab">${esc(m.title)}</span>
+                    <div class="lntrack"><div class="lnbar ${ev}" style="left:${left}%;width:${w}%"><span class="lndot"></span></div></div>
+                    <span class="lncnt">×${m.count || 1}</span>
+                  </div>`;
+                })
+                .join("");
+            };
+            $("ln-ctrl").innerHTML = ["전체", ...topHolders]
+              .map(
+                (h) =>
+                  `<button data-h="${esc(h)}" class="${h === lnActive ? "on" : ""}">${esc(h)}${h !== "전체" ? ` (${holderCount[h]})` : ""}</button>`,
+              )
+              .join("");
+            $("ln-ctrl").onclick = (e) => {
+              const b = e.target.closest("button");
+              if (!b) return;
+              lnActive = b.dataset.h;
+              [...$("ln-ctrl").children].forEach((x) =>
+                x.classList.toggle("on", x === b),
+              );
+              drawLineage();
+            };
+            drawLineage();
+          } else lSec.classList.add("hidden");
 
-  function drawGraph(people,relations){
-    // only entities that appear in a relation; persons solid, orgs dashed amber
-    const inRel=new Set(relations.flatMap(r=>[r.from,r.to]));
-    const nodes=people.filter(p=>inRel.has(p.name));
-    if(!nodes.length){$("relsvg").innerHTML="";return;}
-    const svg=$("relsvg"), W=800,H=500,cx=W/2,cy=H/2, R=Math.min(180, 60+nodes.length*22);
-    const idx=Object.fromEntries(nodes.map((p,i)=>[p.name,i]));
-    const pos=nodes.map((p,i)=>{const a=-Math.PI/2 + i*2*Math.PI/nodes.length;return{x:cx+R*Math.cos(a),y:cy+R*Math.sin(a),name:p.name,role:p.role||"",org:(p.type||"person")==="org"};});
-    let s="";
-    // edges
-    relations.forEach(r=>{const a=pos[idx[r.from]],b=pos[idx[r.to]];if(!a||!b)return;
-      s+=`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${REL_COLOR[r.type]||'#556'}" stroke-width="2.5" stroke-opacity="0.75" ${r.type==='builds-on'?'stroke-dasharray="6 5"':''}/>`;});
-    // nodes
-    pos.forEach(p=>{
-      const outward=(p.x-cx); const anchor=outward>10?"start":outward<-10?"end":"middle";
-      const lx=p.x + (anchor==="start"?12:anchor==="end"?-12:0);
-      const ly=p.y + (Math.abs(outward)<10?(p.y<cy?-16:22):4);
-      s+=`<circle cx="${p.x}" cy="${p.y}" r="9" fill="#16181f" stroke="${p.org?'#e6b34a':'#8fd4a8'}" stroke-width="2.5" ${p.org?'stroke-dasharray="3 3"':''}/>`;
-      s+=`<text x="${lx}" y="${ly}" fill="#e9ecf2" font-size="15" font-weight="700" text-anchor="${anchor}">${esc(p.name)}</text>`;
-      s+=`<text x="${lx}" y="${ly+16}" fill="#8b93a3" font-size="11.5" text-anchor="${anchor}">${esc(p.role)}</text>`;
-    });
-    svg.innerHTML=s;
-  }
+          // person focus — 한 사람의 구조 + 다이내믹스
+          const fSec = $("s-focus");
+          const focusPeople = persons.filter((p) => (p.models || []).length);
+          if (focusPeople.length) {
+            fSec.classList.remove("hidden");
+            focusPeople.sort(
+              (a, b) => (b.models || []).length - (a.models || []).length,
+            );
+            const themeOf = {}; // model id → meta-pattern title (first match)
+            metaPatterns.forEach((t) =>
+              (t.model_ids || []).forEach((id) => {
+                if (!themeOf[id]) themeOf[id] = t.title;
+              }),
+            );
+            let fActive = focusPeople[0].name;
+            const drawFocus = () => {
+              const p =
+                focusPeople.find((x) => x.name === fActive) || focusPeople[0];
+              const held = (p.models || [])
+                .map((id) => modelById[id])
+                .filter(Boolean);
+              // group held models by meta-theme
+              const groups = {};
+              held.forEach((m) => {
+                const th = themeOf[m.id] || "그 외";
+                (groups[th] = groups[th] || []).push(m);
+              });
+              const gOrder = Object.keys(groups).sort(
+                (a, b) => groups[b].length - groups[a].length,
+              );
+              const themesHtml = gOrder
+                .map(
+                  (th) =>
+                    `<div class="fth"><h5>${esc(th)}</h5><ul>${groups[th].map((m) => `<li><span class="d">·</span>${esc(m.title)}</li>`).join("")}</ul></div>`,
+                )
+                .join("");
+              // conflict axes involving p
+              const myAxes = axes.filter(
+                (a) => a.a === p.name || a.b === p.name,
+              );
+              const axesHtml = myAxes
+                .map((a) => {
+                  const mine = a.a === p.name,
+                    otherName = mine ? a.b : a.a,
+                    mySide = mine ? a.a_side : a.b_side,
+                    otherSide = mine ? a.b_side : a.a_side;
+                  return `<div class="faxis"><div class="vs">${esc(p.name)} ⟷ ${esc(otherName)}</div><div class="sh">축: ${esc(a.axis || "")}${a.shared_axiom ? ` · 공유 공리: ${esc(a.shared_axiom)}` : ""}</div><div class="sides"><div class="side"><b>${esc(p.name)}</b>${esc(mySide || "")}</div><div class="side"><b>${esc(otherName)}</b>${esc(otherSide || "")}</div></div></div>`;
+                })
+                .join("");
+              // relations
+              const myRels = (relations || []).filter(
+                (r) => r.from === p.name || r.to === p.name,
+              );
+              const relHtml = myRels
+                .map((r) => {
+                  const other = r.from === p.name ? r.to : r.from;
+                  return `<div class="frel"><span class="rt ${esc(r.type || "")}">${esc(r.type || "")}</span><span>${esc(other)}${r.topic ? ` — ${esc(r.topic)}` : ""}</span></div>`;
+                })
+                .join("");
+              // traps
+              const myTraps = (traps || []).filter((t) => t.who === p.name);
+              const trapHtml = myTraps
+                .map(
+                  (t) =>
+                    `<div class="ftrap">🕳 ${esc(t.desc || "")}${t.state ? ` <span style="color:var(--tx2)">(${esc(t.state)})</span>` : ""}</div>`,
+                )
+                .join("");
+              // evolution track — 사고가 회의를 거치며 어떻게 움직였는지
+              const evo = [...(p.evolution || [])].sort((a, b) =>
+                String(a.date).localeCompare(String(b.date)),
+              );
+              const evoHtml = evo
+                .map(
+                  (e) =>
+                    `<div class="evorow"><span class="ed">${esc(e.date || "")}</span><span class="en">${esc(e.note || "")}</span></div>`,
+                )
+                .join("");
+              // briefing — 위임·설득용 종합 (강점 테마 + 설득 문법 + 부딪히는 지점 + 맹점)
+              const clip = (s, n) => {
+                s = String(s || "");
+                return s.length > n ? s.slice(0, n - 1) + "…" : s;
+              };
+              const strongThemes = gOrder
+                .slice(0, 2)
+                .map((th) => `${esc(th)} (${groups[th].length})`)
+                .join(", ");
+              const frictionLines = myAxes
+                .map((a) => {
+                  const mine = a.a === p.name;
+                  const other = mine ? a.b : a.a;
+                  const side = mine ? a.a_side : a.b_side;
+                  return `<li><b>${esc(other)}</b>와 <b>${esc(clip(a.axis, 22))}</b>에서 갈림 — 이 사람은 “${esc(clip(side, 40))}”</li>`;
+                })
+                .join("");
+              const blindLines = myTraps
+                .map(
+                  (t) =>
+                    `<li>${esc(clip(t.desc, 70))}${t.state ? ` <span style="color:var(--tx2)">(${esc(t.state)})</span>` : ""}</li>`,
+                )
+                .join("");
+              const briefFgrp = `<div class="fbrief">
+                <div class="fblbl">브리핑 — 맡기거나 설득하려면</div>
+                ${strongThemes ? `<div class="fbrow"><span class="fbk">강점 테마</span><span>${strongThemes}</span></div>` : ""}
+                ${p.playbook ? `<div class="fbrow"><span class="fbk">설득 문법</span><span>${esc(p.playbook)}</span></div>` : ""}
+                ${frictionLines ? `<div class="fbrow"><span class="fbk">부딪히는 지점</span><ul class="fbul">${frictionLines}</ul></div>` : ""}
+                ${blindLines ? `<div class="fbrow"><span class="fbk">맹점(주의)</span><ul class="fbul">${blindLines}</ul></div>` : ""}
+              </div>`;
+              // relationship map (center = p, satellites = connected people; edges by type)
+              const conn = {};
+              myAxes.forEach((a) => {
+                const o = a.a === p.name ? a.b : a.a;
+                conn[o] = conn[o] || { types: new Set(), axis: "" };
+                conn[o].types.add("axis");
+                conn[o].axis = a.axis || "";
+              });
+              myRels.forEach((r) => {
+                const o = r.from === p.name ? r.to : r.from;
+                conn[o] = conn[o] || { types: new Set() };
+                conn[o].types.add(r.type || "rel");
+              });
+              const others = Object.keys(conn);
+              const edgeCol = {
+                axis: "#ff6b8a",
+                tension: "#ff6b8a",
+                "builds-on": "#6ea8ff",
+                agree: "#6bd39a",
+                rel: "#7a8291",
+              };
+              const primType = (o) => {
+                const t = conn[o].types;
+                return t.has("axis")
+                  ? "axis"
+                  : t.has("tension")
+                    ? "tension"
+                    : t.has("builds-on")
+                      ? "builds-on"
+                      : t.has("agree")
+                        ? "agree"
+                        : "rel";
+              };
+              const short = (s, n) => {
+                s = String(s || "");
+                return s.length > n ? s.slice(0, n - 1) + "…" : s;
+              };
+              let mapFgrp = "";
+              if (others.length) {
+                const cx = 320,
+                  cy = 155,
+                  R = 118;
+                const nodes = others.map((o, i) => {
+                  const ang =
+                    (-90 + (i * 360) / others.length) * (Math.PI / 180);
+                  return {
+                    o,
+                    x: cx + R * Math.cos(ang),
+                    y: cy + R * Math.sin(ang),
+                    c: edgeCol[primType(o)],
+                  };
+                });
+                const edges = nodes
+                  .map(
+                    (n) =>
+                      `<line x1="${cx}" y1="${cy}" x2="${n.x.toFixed(0)}" y2="${n.y.toFixed(0)}" stroke="${n.c}" stroke-width="2" opacity="0.75"><title>${esc(conn[n.o].axis || [...conn[n.o].types].join(", "))}</title></line>`,
+                  )
+                  .join("");
+                const onodes = nodes
+                  .map(
+                    (n) =>
+                      `<g><circle cx="${n.x.toFixed(0)}" cy="${n.y.toFixed(0)}" r="19" fill="#232734" stroke="${n.c}" stroke-width="2"/><text x="${n.x.toFixed(0)}" y="${(n.y + 4).toFixed(0)}" text-anchor="middle" font-size="11" fill="#e8eaed">${esc(short(n.o, 4))}</text></g>`,
+                  )
+                  .join("");
+                const legend = `<g font-size="11"><circle cx="14" cy="14" r="5" fill="#ff6b8a"/><text x="24" y="18" fill="#9aa0aa">충돌</text><circle cx="74" cy="14" r="5" fill="#6bd39a"/><text x="84" y="18" fill="#9aa0aa">동의</text><circle cx="134" cy="14" r="5" fill="#6ea8ff"/><text x="144" y="18" fill="#9aa0aa">발전</text></g>`;
+                mapFgrp = `<div class="fgrp"><div class="lbl">관계 지도 — ${esc(p.name)} ⟷ 연결된 인물 (${others.length})</div>
+                  <div class="fmap"><svg viewBox="0 0 640 300" preserveAspectRatio="xMidYMid meet">
+                    ${edges}${legend}
+                    <circle cx="${cx}" cy="${cy}" r="27" fill="#f5b642" stroke="#f5b642"/><text x="${cx}" y="${cy + 4}" text-anchor="middle" font-size="12" font-weight="800" fill="#1a1d26">${esc(short(p.name, 5))}</text>
+                    ${onodes}
+                  </svg></div></div>`;
+              }
+              $("f-panel").innerHTML = `
+                <div class="fhead"><h3>${esc(p.name)}</h3><span class="role">${esc(p.role || "")}${p.org ? ` · ${esc(p.org)}` : ""}</span><span class="ev ${p.evidence || "low"}">${EV[p.evidence || "low"]}</span></div>
+                <div class="fsum">${esc(p.summary || "")}</div>
+                ${briefFgrp}
+                ${mapFgrp}
+                <div class="fgrp"><div class="lbl">사고 구조 — 메타테마별 모델 (${held.length})</div><div class="fthemes">${themesHtml || '<p class="empty">모델 없음</p>'}</div></div>
+                ${axesHtml ? `<div class="fgrp"><div class="lbl">대립 다이내믹스 — 충돌 축 (${myAxes.length})</div>${axesHtml}</div>` : ""}
+                ${relHtml ? `<div class="fgrp"><div class="lbl">관계</div>${relHtml}</div>` : ""}
+                ${trapHtml ? `<div class="fgrp"><div class="lbl">함정</div>${trapHtml}</div>` : ""}
+                ${evoHtml ? `<div class="fgrp"><div class="lbl">사고 진화 (${evo.length})</div><div class="evotrack">${evoHtml}</div></div>` : ""}`;
+            };
+            $("f-sel").innerHTML = focusPeople
+              .map(
+                (p) =>
+                  `<button data-p="${esc(p.name)}" class="${p.name === fActive ? "on" : ""}">${esc(p.name)} (${(p.models || []).length})</button>`,
+              )
+              .join("");
+            $("f-sel").onclick = (e) => {
+              const b = e.target.closest("button");
+              if (!b) return;
+              fActive = b.dataset.p;
+              [...$("f-sel").children].forEach((x) =>
+                x.classList.toggle("on", x === b),
+              );
+              drawFocus();
+            };
+            drawFocus();
+          } else fSec.classList.add("hidden");
 
-  // ---- data loading (file / drag-drop / sample) ----
-  function loadFile(f){
-    const rd=new FileReader();
-    rd.onload=()=>{try{const d=JSON.parse(rd.result);render(d);$("banner").classList.add("hidden");window.scrollTo({top:0});}catch(err){alert("JSON 파싱 실패: "+err.message);}};
-    rd.readAsText(f);
-  }
-  const pick=()=>$("file").click();
-  $("load").onclick=pick; $("load2").onclick=pick;
-  $("file").onchange=e=>{if(e.target.files[0])loadFile(e.target.files[0]);};
-  // drag-drop
-  const drop=$("drop");let dc=0;
-  window.addEventListener("dragenter",e=>{e.preventDefault();dc++;drop.classList.add("on");});
-  window.addEventListener("dragover",e=>e.preventDefault());
-  window.addEventListener("dragleave",e=>{dc--;if(dc<=0)drop.classList.remove("on");});
-  window.addEventListener("drop",e=>{e.preventDefault();dc=0;drop.classList.remove("on");const f=e.dataTransfer.files[0];if(f)loadFile(f);});
+          // team alignment heatmap (meta-theme × person)
+          const hmSec = $("s-heatmap");
+          if (metaPatterns.length && focusPeople.length) {
+            hmSec.classList.remove("hidden");
+            const cols = focusPeople.slice(0, 10); // 상위 인물(모델 수)로 제한
+            const memberSet = metaPatterns.map(
+              (t) => new Set(t.model_ids || []),
+            );
+            const trunc5 = (s) => {
+              s = String(s || "");
+              return s.length > 6 ? s.slice(0, 5) + "…" : s;
+            };
+            let maxc = 1;
+            const matrix = metaPatterns.map((t, ti) =>
+              cols.map((p) => {
+                const c = (p.models || []).filter((id) =>
+                  memberSet[ti].has(id),
+                ).length;
+                if (c > maxc) maxc = c;
+                return c;
+              }),
+            );
+            const head = `<tr><th class="hcorner"></th>${cols.map((p) => `<th><span>${esc(trunc5(p.name))}</span></th>`).join("")}</tr>`;
+            const rows = metaPatterns
+              .map(
+                (t, ti) =>
+                  `<tr><td class="hrow">${esc(t.title)}</td>${matrix[ti]
+                    .map((c) => {
+                      const op = c ? (0.18 + 0.82 * (c / maxc)).toFixed(2) : 0;
+                      return `<td class="hcell"${c ? ` style="background:rgba(245,182,66,${op})"` : ""}>${c || ""}</td>`;
+                    })
+                    .join("")}</tr>`,
+              )
+              .join("");
+            $("hm-wrap").innerHTML =
+              `<table class="heatmap">${head}${rows}</table>`;
+          } else hmSec.classList.add("hidden");
 
-  // initial: sample
-  render(JSON.parse($("sample-data").textContent));
-})();
-</script>
-</body>
+          // nav (only visible sections)
+          const secs = [
+            ["s-meta", "메타패턴"],
+            ["s-focus", "인물 포커스"],
+            ["s-heatmap", "팀 정렬"],
+            ["s-people", "사람별 모델"],
+            ["s-map", "멘탈모델 지도"],
+            ["s-rel", "관계·대립"],
+            ["s-time", "시간축"],
+            ["s-lineage", "모델 계보"],
+            ["s-bets", "베팅·리스크"],
+          ];
+          $("navbtns").innerHTML = secs
+            .filter((s) => !$(s[0]).classList.contains("hidden"))
+            .map((s) => `<button data-go="${s[0]}">${s[1]}</button>`)
+            .join("");
+          $("navbtns").onclick = (e) => {
+            const b = e.target.closest("button");
+            if (b) $(b.dataset.go).scrollIntoView({ behavior: "smooth" });
+          };
+
+          // collapsible sections — overview first, expand on demand
+          const countOf = {
+            "s-meta": metaPatterns.length + " 테마",
+            "s-focus": focusPeople.length + " 인물",
+            "s-heatmap":
+              metaPatterns.length + "×" + Math.min(focusPeople.length, 10),
+            "s-people": people.length + " 명",
+            "s-map": models.length + " 모델",
+            "s-rel": relations.length + network.length + " 관계",
+            "s-lineage": dated.length + " 모델",
+            "s-axes": axes.length + " 축",
+            "s-bets": bets.length + risks.length + " 항목",
+            "s-traps": traps.length + " 함정",
+          };
+          const openByDefault = new Set(["s-meta", "s-focus"]); // 개괄만 펼침
+          document.querySelectorAll("section[id^='s-']").forEach((sec) => {
+            const head = sec.querySelector(".sec-head");
+            const h2 = head && head.querySelector("h2");
+            if (!head || !h2 || sec.classList.contains("hidden")) return;
+            if (!h2.querySelector(".caret"))
+              h2.insertAdjacentHTML(
+                "afterbegin",
+                '<span class="caret">▾</span>',
+              );
+            head.setAttribute("data-count", countOf[sec.id] || "");
+            if (!openByDefault.has(sec.id)) sec.classList.add("collapsed");
+            head.onclick = () => sec.classList.toggle("collapsed");
+          });
+          const tgl = $("toggle-all");
+          if (tgl) {
+            const anyOpen = () =>
+              [
+                ...document.querySelectorAll("section[id^='s-']:not(.hidden)"),
+              ].some((s) => !s.classList.contains("collapsed"));
+            const sync = () =>
+              (tgl.textContent = anyOpen() ? "모두 접기 ▴" : "모두 펼치기 ▾");
+            tgl.onclick = () => {
+              const collapseAll = anyOpen();
+              document
+                .querySelectorAll("section[id^='s-']:not(.hidden)")
+                .forEach((s) => s.classList.toggle("collapsed", collapseAll));
+              sync();
+            };
+            sync();
+          }
+
+          // footer
+          $("f-note").textContent = meta.confidence_note || "";
+          $("f-srcs").innerHTML = (meta.sources || [])
+            .map((s) => `<li>${esc(s)}</li>`)
+            .join("");
+        }
+
+        function drawGraph(people, relations) {
+          // only entities that appear in a relation; persons solid, orgs dashed amber
+          const inRel = new Set(relations.flatMap((r) => [r.from, r.to]));
+          const nodes = people.filter((p) => inRel.has(p.name));
+          if (!nodes.length) {
+            $("relsvg").innerHTML = "";
+            return;
+          }
+          const svg = $("relsvg"),
+            W = 800,
+            H = 500,
+            cx = W / 2,
+            cy = H / 2,
+            R = Math.min(180, 60 + nodes.length * 22);
+          const idx = Object.fromEntries(nodes.map((p, i) => [p.name, i]));
+          const pos = nodes.map((p, i) => {
+            const a = -Math.PI / 2 + (i * 2 * Math.PI) / nodes.length;
+            return {
+              x: cx + R * Math.cos(a),
+              y: cy + R * Math.sin(a),
+              name: p.name,
+              role: p.role || "",
+              org: (p.type || "person") === "org",
+            };
+          });
+          let s = "";
+          // edges
+          relations.forEach((r) => {
+            const a = pos[idx[r.from]],
+              b = pos[idx[r.to]];
+            if (!a || !b) return;
+            s += `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${REL_COLOR[r.type] || "#556"}" stroke-width="2.5" stroke-opacity="0.75" ${r.type === "builds-on" ? 'stroke-dasharray="6 5"' : ""}/>`;
+          });
+          // nodes
+          pos.forEach((p) => {
+            const outward = p.x - cx;
+            const anchor =
+              outward > 10 ? "start" : outward < -10 ? "end" : "middle";
+            const lx =
+              p.x + (anchor === "start" ? 12 : anchor === "end" ? -12 : 0);
+            const ly =
+              p.y + (Math.abs(outward) < 10 ? (p.y < cy ? -16 : 22) : 4);
+            s += `<circle cx="${p.x}" cy="${p.y}" r="9" fill="#16181f" stroke="${p.org ? "#e6b34a" : "#8fd4a8"}" stroke-width="2.5" ${p.org ? 'stroke-dasharray="3 3"' : ""}/>`;
+            s += `<text x="${lx}" y="${ly}" fill="#e9ecf2" font-size="15" font-weight="700" text-anchor="${anchor}">${esc(p.name)}</text>`;
+            s += `<text x="${lx}" y="${ly + 16}" fill="#8b93a3" font-size="11.5" text-anchor="${anchor}">${esc(p.role)}</text>`;
+          });
+          svg.innerHTML = s;
+        }
+
+        // ---- data loading (file / drag-drop / sample) ----
+        function loadFile(f) {
+          const rd = new FileReader();
+          rd.onload = () => {
+            try {
+              const d = JSON.parse(rd.result);
+              render(d);
+              $("banner").classList.add("hidden");
+              window.scrollTo({ top: 0 });
+            } catch (err) {
+              alert("JSON 파싱 실패: " + err.message);
+            }
+          };
+          rd.readAsText(f);
+        }
+        const pick = () => $("file").click();
+        $("load").onclick = pick;
+        $("load2").onclick = pick;
+        $("file").onchange = (e) => {
+          if (e.target.files[0]) loadFile(e.target.files[0]);
+        };
+        // drag-drop
+        const drop = $("drop");
+        let dc = 0;
+        window.addEventListener("dragenter", (e) => {
+          e.preventDefault();
+          dc++;
+          drop.classList.add("on");
+        });
+        window.addEventListener("dragover", (e) => e.preventDefault());
+        window.addEventListener("dragleave", (e) => {
+          dc--;
+          if (dc <= 0) drop.classList.remove("on");
+        });
+        window.addEventListener("drop", (e) => {
+          e.preventDefault();
+          dc = 0;
+          drop.classList.remove("on");
+          const f = e.dataTransfer.files[0];
+          if (f) loadFile(f);
+        });
+
+        // initial: sample
+        render(JSON.parse($("sample-data").textContent));
+      })();
+    </script>
+  </body>
 </html>

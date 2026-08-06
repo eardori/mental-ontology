@@ -86,8 +86,12 @@ def transcribe(audio: str, lang: str):
     try:
         import mlx_whisper  # type: ignore
         log("engine: mlx_whisper (large-v3-turbo)")
+        # condition_on_previous_text=False stops runaway hallucination loops
+        # (repeated tokens like "drains drains…") on noisy/low-mic audio — the
+        # decoder no longer feeds a garbled prior back into itself.
         return mlx_whisper.transcribe(
-            audio, path_or_hf_repo="mlx-community/whisper-large-v3-turbo", language=lang)
+            audio, path_or_hf_repo="mlx-community/whisper-large-v3-turbo",
+            language=lang, condition_on_previous_text=False)
     except ImportError:
         pass
     # 2) openai-whisper — portable fallback
@@ -131,7 +135,8 @@ def main():
         if lang == "auto":
             lang = detect_language(audio)
         res = transcribe(audio, lang)
-        segs = [{"start": round(s["start"], 1), "text": s["text"].strip()}
+        segs = [{"start": round(s["start"], 1), "end": round(s.get("end", s["start"]), 1),
+                 "text": s["text"].strip()}
                 for s in res.get("segments", [])]
         rr = repetition_ratio(segs)
         if rr > 0.3:

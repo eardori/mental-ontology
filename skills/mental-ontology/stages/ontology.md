@@ -9,8 +9,8 @@ Follow the full extraction spec in `assets/EXTRACTION.md`. Summary:
 
 1. **Scope**: ask the user once — whole corpus vs. a period/category vs. one person deep-dive. Exclude `개인-통화` and junk by default.
    - **Cold start**: with fewer than ~10 meetings the ontology will be thin and low-evidence — say so honestly, lead with the 회의록 정리+검색 value, and suggest returning to ontology once 10+ meetings accumulate. Don't oversell a map drawn from 3 data points.
-2. **Extract per meeting** (parallel subagents on cheap model for large corpora): each person's mental models — *reusable beliefs/decision criteria*, not one-off opinions — with `evidence: high|mid|low` graded honestly (verbatim quote → high; role-based inference → mid; presence only → low), plus counterparts and tensions.
-   - **Attribution discipline** (EXTRACTION.md rule 0): a model's `holders` = who *holds* the belief; `about` = whom it *concerns*. "정우진이 경쟁사 메가스테이에 대해 한 말"의 holder는 정우진이다. Org-held models (제3자 추정) cap at `mid`. Person names must be `_meta/speakers.json` canonical names — that's what joins the ontology to transcripts in the DB.
+2. **Extract per meeting** (parallel subagents on cheap model for large corpora): each person's mental models — _reusable beliefs/decision criteria_, not one-off opinions — with `evidence: high|mid|low` graded honestly (verbatim quote → high; role-based inference → mid; presence only → low), plus counterparts and tensions.
+   - **Attribution discipline** (EXTRACTION.md rule 0): a model's `holders` = who _holds_ the belief; `about` = whom it _concerns_. "정우진이 경쟁사 메가스테이에 대해 한 말"의 holder는 정우진이다. Org-held models (제3자 추정) cap at `mid`. Person names must be `_meta/speakers.json` canonical names — that's what joins the ontology to transcripts in the DB.
 3. **Synthesize** (stronger model): cluster instances into canonical models; build people cards, relations (`agree|tension|builds-on` — tensions are the most valuable signal), timeline of thinking evolution, strategy bets ↔ risks.
 4. **Sensitive data policy**: financial specifics (equity %, amounts, valuations) are always generalized in outputs. Personal-life context (가족, 건강, 취향, 근황) follows the config key `personal_context` in `~/.mental-ontology.json`: `"record"` = keep it in dossiers/outputs (relationship-tool mode — remembering "딸이 수험생" is the point), `"mask"` = exclude it everywhere (default when unset). Ask the user once on first Stage 6 run and save their choice to the config.
 5. **Ask how to visualize** (AskUserQuestion, once per analysis run — skip if the user already said):
@@ -21,6 +21,7 @@ Follow the full extraction spec in `assets/EXTRACTION.md`. Summary:
 6. **Generate per choice** into `<corpus>/_ontology/`:
    - Always: `objects.json` per `assets/schema.json` (schema v2: `meta.schema_version: 2`, `people[].type`, `models[].holders/about`, `meetings[].source_id+path`, `meta.processed_source_ids`) — this is the data of record regardless of visualization choice. Working/intermediate files (per-meeting extracts, aggregates) go in `_ontology/_work/<date-label>/`, never loose in `_ontology/`.
    - **Then validate — mandatory**: `python3 <skill_dir>/scripts/validate.py <corpus_path>`. Fix every ERROR before proceeding; surface WARNs to the user. (Legacy v1 objects.json → run `scripts/migrate_objects.py` first.)
+   - **viewer.html 은 다음 뷰를 렌더**(전부 objects.json 파생, 추가 데이터 불필요): 메타패턴(`meta_patterns`, build_meta.py 생성) · **인물 포커스**(한 사람의 구조+관계 SVG 맵+충돌축+관계+함정+사고진화+위임/설득 브리핑) · **팀 정렬 히트맵**(메타테마×인물) · **충돌 축 긴장 지도**(인물 노드, 축=빨강 엣지) · **모델 계보**(first_seen→last_seen). 섹션은 접기/펼치기(개괄 우선). 새 필드/뷰 추가 시 `assets/viewer.html` 템플릿을 고치고 re-embed.
    - HTML → `index.html`: copy `assets/viewer.html`, then **embed** objects.json by replacing the content of `<script id="sample-data" type="application/json">…</script>` and hiding the sample banner (`class="banner"` → `class="banner hidden"`) so it renders on double-click without a server.
    - md report → `REPORT.md`: executive summary (3–5 bullets: the person's/org's core thinking axes), per-person one-liners with evidence grades, notable tensions, timeline.
    - Person dossiers → run `python3 <skill_dir>/scripts/build_dossiers.py <corpus_path>` → `people/<이름>.md` (core + acquaintance) + `people/INDEX.md` (contacts 전원 + 승격 후보). The script assembles everything data can prove (identity, personal[], models, relations/network, co-attendees, full interaction timeline as wikilinks); the `<!-- manual:start/end -->` block preserves the user's own notes across regenerations. After the script, the LLM may refresh only the 개요/traits line for changed core people. **These dossiers are the artifact people actually reuse** — before a 1:1, before delegation, before a pitch.
@@ -62,6 +63,7 @@ All intermediates live in `<corpus>/_ontology/_work/<date-label>/` (the workdir)
 `meta.processed_source_ids`. One agent per batch writes `extract-<id>.json`:
 `{"batch", "meetings": [{source_id, date, title, instances[], tensions[],
 network_facts[], timeline_signal}]}`. Non-negotiables in the agent prompt:
+
 - holder = canonical registry name only; unmappable generic speakers → SKIP, never guess
 - quote = **EXACT verbatim substring** copied from the transcript (no paraphrase,
   no "..." stitching) — this is what makes validate.py's quote grounding pass
@@ -70,9 +72,11 @@ network_facts[], timeline_signal}]}`. Non-negotiables in the agent prompt:
 - tensions only for REAL clashes (empty is normal); network_facts for 소개/협업/투자
 
 **Step 2 — Prepare (script):**
+
 ```bash
 python3 <skill_dir>/scripts/prepare_synthesis.py <corpus> <workdir>
 ```
+
 Aggregates extract files into per-task `synth-task-<key>.json` (every existing model
 assigned to exactly ONE task by primary holder; heavy holders split by category),
 plus pooled tensions/network/timeline. Prints dropped non-canonical holders.
@@ -80,21 +84,59 @@ plus pooled tensions/network/timeline. Prints dropped non-canonical holders.
 **Step 3 — Synthesize (agents, one per key in `synth_keys.json`):** each reads its
 task file and writes `synth-<key>.json` `{"key", "models": [existing(updated)+new],
 "evolution": [{person,date,note}], "summary"}`. Non-negotiables:
+
 - existing ids are STABLE — update in place (count/first_seen/last_seen/about/quote)
 - consolidate aggressively; one-off remarks drop; contradiction → downgrade or evolution
 - new ids: descriptive kebab-case
 
 **Step 4 — Merge (script):**
+
 ```bash
 python3 <skill_dir>/scripts/merge_ontology.py <corpus> <workdir>          # dry-run plan
 python3 <skill_dir>/scripts/merge_ontology.py <corpus> <workdir> --apply  # backup + write
 ```
+
 Handles carry-over, id collisions (renamed + reported — review any `-2` ids and
 merge duplicates by hand), people[].models rebuild, entity-name normalization,
 self-org edge drops, pool dedupe, timeline capping, `processed_source_ids`.
 Then: `validate.py` (quote grounding + integrity) → `build_db.py` →
 `build_dossiers.py` → re-embed the viewer. Report the before/after numbers honestly
 (models, grounding rate, coverage) — including what was downgraded or dropped.
+
+### ALWAYS run after ANY objects.json change (do not skip — this is what keeps the derived artifacts from going stale)
+
+**Whenever you edit `objects.json` — a daily sync, a manual add, a merge — run all four before finishing:**
+
+```bash
+# 1) re-embed viewer (regex-replace <script id="sample-data"> with objects.json, banner→hidden)
+# 2) build_db.py <corpus>        # FTS5 over corpus+ontology
+# 3) build_dossiers.py <corpus>  # people cards
+# 4) consolidate.py <corpus> --apply-recalib   # hygiene: recalibrate confidence + report dupes/flags
+# 5) build_meta.py <corpus>     # cross-cutting meta-patterns (top-down themes) into objects.json → re-embed after
+```
+> Order matters: run `build_meta.py` BEFORE the viewer re-embed (step 1) so meta_patterns land in the embedded JSON. A practical loop: consolidate → build_meta → re-embed → build_db → build_dossiers.
+
+`index.html` / `ontology.db` / dossiers are DERIVED — editing objects.json without
+re-running these leaves the viewer showing stale data (a real failure mode observed
+2026-08). The viewer re-embed has no script, so do it inline every time.
+
+### Ontology hygiene — `consolidate.py` (accuracy grows with data)
+
+`scripts/consolidate.py <corpus>` (report) / `--apply-recalib` (write):
+
+- **Confidence recalibration (deterministic, safe to auto-apply)**: `evidence` grade is
+  derived from evidence, not hand-set. **high = a repeated pattern** (count≥3, direct,
+  verbatim quote); mid = count≥2 or has quote; low = single unquoted sighting;
+  hearsay/reference cap at mid. So a belief seen across many meetings _earns_ high, and a
+  one-off stops overclaiming — accuracy compounds as the corpus grows.
+- **Near-duplicate candidates** (same category, high content-word Jaccard w/ Korean josa
+  stemming) → a REVIEW list. Merges are NOT auto-applied — judge semantically, then
+  `merge_models(objpath, keep_id, drop_id)` (unions holders/related/quote, sums count,
+  backdates first_seen, repoints references, records `merged_from`).
+- **Flags**: orphans (no `related`, count 1 — likely needs linking or is noise), stale
+  (`last_seen` old — answer these in past tense per the honesty rule), hearsay-graded-high.
+- Run `--apply-recalib` every sync; do the dupe/flag review periodically (or when the
+  model count jumps). First-run 2026-08: 226 models, 0 near-dupes (clean), 80 recalibrated.
 
 ## v3 — shadows, common ground, and honesty about sources
 
