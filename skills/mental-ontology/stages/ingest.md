@@ -37,11 +37,25 @@ Only for recordings with no Plaud transcript.
      hallucination loops, e.g. an English meeting transcribed as Korean greetings).
      If the output's `repetition_ratio` > 0.3, re-run with the correct explicit `--lang`.
    ```bash
+
    ```
    - It validates the download (≥1MB, not an XML `ExpiredToken` error), picks `mlx_whisper` on Apple Silicon or `openai-whisper` elsewhere, and writes `<corpus>/_whisper/<id>.json` (`{id, text, segments:[{start,text}]}`).
    - If neither whisper package is installed, the script prints install hints (`pip3 install mlx-whisper` on Apple Silicon, else `pip3 install openai-whisper`). Offer to install for the user.
 3. Long audio takes real time (roughly 5–7× realtime on Apple Silicon). For multiple files, run sequentially in the background and continue other work; warn the user that closing the laptop lid pauses transcription (finished files are skipped on rerun — safe to resume).
 4. Whisper output has **no speaker separation** — note `transcribed_by: whisper` in the frontmatter and still attempt Stage 3 from context clues (self-introductions, names being addressed).
+
+### Stage 2b — Local speaker diarization (optional, for Whisper audio)
+
+When Whisper audio has multiple speakers, split them locally with the sherpa-onnx scripts (no cloud). Convert to 16kHz mono first, then diarize → recluster → merge:
+
+```bash
+ffmpeg -i in.mp3 -ac 1 -ar 16000 in.wav
+python3 <skill_dir>/scripts/diarize.py    in.wav diar.json                     # first pass (over-splits)
+python3 <skill_dir>/scripts/recluster.py  in.wav diar.json diar_re.json 0.45   # cosine 0.45; lower = more speakers
+python3 <skill_dir>/scripts/merge_diar.py <whisper.json> diar_re.json labeled.txt   # → "[MM:SS] Speaker N: …"
+```
+
+Then relabel `Speaker N` → real names in Stage 3. **Setup once**: `pip3 install sherpa-onnx soundfile numpy scikit-learn`, and place the models (`sherpa-onnx-pyannote-segmentation-3-0/model.onnx`, `campplus.onnx`) in a dir pointed to by `DIAR_MODELS` (default `~/.cache/mental-ontology/diar-models`). The recluster pass is not optional: sherpa's raw clustering badly over-segments (e.g. 40 speakers for a 2-person call); threshold 0.45 works well for Korean.
 
 ## Stage 3 — Speaker attribution (interactive, learning)
 
@@ -106,18 +120,21 @@ Goal: replace "Speaker 1/2" and misattributed labels with real names, learning o
    source_id: <plaud file id>
    duration_min: <n>
    transcribed_by: plaud | whisper
-   part: "1/2"            # only when split
+   part: "1/2" # only when split
    ---
 
    # <title>
 
    ## 요약 / Summary
+
    <3–6 lines; use get_note if available>
 
    ## 액션아이템 / Action items
-   - [ ] (요청자→담당자) 내용 (기한: YYYY-MM-DD)     # 화살표·기한은 알 수 있을 때만
+
+   - [ ] (요청자→담당자) 내용 (기한: YYYY-MM-DD) # 화살표·기한은 알 수 있을 때만
 
    ## 트랜스크립트 / Transcript
+
    **[Name] (mm:ss)** utterance...
    ```
    The 액션아이템 checklist is machine-parsed into the DB (`commitments`) and surfaces
