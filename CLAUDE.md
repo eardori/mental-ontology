@@ -93,6 +93,14 @@ Plaud MCP / audio → transcripts/*.md (frontmatter + 요약 + 액션아이템 +
   removes a person from query mode. `tier` (core/acquaintance/contact) gates dossier depth;
   `team`/`manager` become `보고` edges in the `network` table so the org chart and the social
   graph are one queryable graph.
+- **Two units of analysis, deliberately separate.** A `models[]` entry is a *reusable belief*
+  ("속도가 먼저다"); a `readings[]` entry is *what one person wanted in one conversation*
+  ("이번 분기 안에 공표를 원한다"). The extraction spec (`assets/EXTRACTION.md` §7) forbids
+  a reading without a textual signal in `basis[]` (closed set: 반복/무응답/화제전환/선제언급/
+  마무리발언/양보조건/되묻기/호칭변화), caps `confidence` at 보통, and requires `surface`
+  (what was said) beside `reading` (what was inferred). Every reading starts `추정` and is
+  resolved by a later meeting into `확인됨`/`빗나감`, which is what lets validate.py and
+  build_db.py print a **hit rate** — the layer has to be able to say how often it was wrong.
 - **Voice identity closes the ingest loop.** `_meta/voiceprints.json` (written by
   `voiceprint.py`) maps campplus embeddings to registry canonical names, so a person confirmed
   once is auto-labeled in every later audio import: `diarize` → `recluster` → `voiceprint embed`
@@ -127,16 +135,17 @@ must be reported, not swallowed.
 
 ## Gotchas
 
-- **Schema v2 vs v3.** `assets/schema.json` and `examples/sample-objects.json` are v3
-  (`evidence_type`, `traps`, `conflict_axes`, per-person `playbook`, `meta_patterns`), while
-  `migrate_objects.py` writes `schema_version: 2` and `stages/ontology.md` describes v2 in
-  stage 6 and v3 in its final section. v3 fields are additive; treat v2 as the floor —
+- **Schema versions are additive, and the files disagree about the number.** v2 split
+  holder/about, v3 added `evidence_type`/`traps`/`conflict_axes`/`playbook`, v4 added
+  `readings` (대화 의도). `assets/schema.json` and `examples/sample-objects.json` are v4, while
+  `migrate_objects.py` writes `schema_version: 2`. Treat v2 as the floor —
   `build_db.py` still has a v1 compat path (it unions `people[].models` into the holder table
   when `schema_version < 2`), so a legacy corpus fails loudly nowhere: run
   `migrate_objects.py` first.
-- **v3 fields are viewer/validate-only.** `traps`, `conflict_axes`, and `meta_patterns` are not
-  stored in `ontology.db`, so SQL query mode cannot see them — a new top-level field needs a
-  `build_db.py` table if answers should be able to cite it.
+- **A new top-level field needs a `build_db.py` table**, or query mode cannot cite it. `traps`,
+  `conflict_axes` and `readings` now have tables; `meta_patterns` still does not (viewer-only).
+  This bit the repo once already — the shipped v3 character data was invisible to SQL for a
+  release.
 - **Two copies of the sample data.** `examples/sample-objects.json` and the embedded
   `<script id="sample-data">` block in `assets/viewer.html` are the same object except that the
   viewer copy also carries `meta_patterns`. Update both when changing the demo.

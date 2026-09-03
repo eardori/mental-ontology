@@ -13,6 +13,11 @@ Tables
   person_aliases(canonical, alias)  -- from _meta/speakers.json + auto name variants
   relations(from_person, to_person, type, topic, note)
   timeline(date, meeting, change)   bets(tag, title, desc)   risks(level, title, desc)
+  readings(id, who, meeting, date, surface, reading, confidence, evidence_type, status,
+           resolved_*)                -- 대화 의도: what someone was after in ONE meeting
+  reading_basis(reading_id, kind, detail, quote)   -- the signal that justifies a reading
+  traps(who, model_id, desc, state, ...)          -- the shadow each model casts
+  conflict_axes(a, b, axis, shared_axiom, ...)    -- shared axiom + symmetric split
   meetings(source_id, date, title, category, duration_min, transcribed_by, path, participants)
   utterances(meeting_rowid, speaker, speaker_raw, ts, text)
       -- speaker = canonical name when resolvable via person_aliases, else raw label
@@ -161,6 +166,17 @@ def main():
     CREATE TABLE person_meetings(person TEXT, meeting_rowid INTEGER, src TEXT);
     CREATE INDEX idx_pm_person ON person_meetings(person);
     CREATE TABLE timeline(date TEXT, meeting TEXT, change TEXT);
+    CREATE TABLE readings(id TEXT PRIMARY KEY, who TEXT, meeting TEXT, date TEXT,
+                          surface TEXT, reading TEXT, confidence TEXT, evidence_type TEXT,
+                          status TEXT, resolved_date TEXT, resolved_meeting TEXT,
+                          resolved_note TEXT);
+    CREATE TABLE reading_basis(reading_id TEXT, kind TEXT, detail TEXT, quote TEXT);
+    CREATE INDEX idx_read_who ON readings(who);
+    CREATE INDEX idx_read_status ON readings(status);
+    CREATE TABLE traps(who TEXT, model_id TEXT, desc TEXT, state TEXT,
+                       evidence_type TEXT, source TEXT);
+    CREATE TABLE conflict_axes(a TEXT, b TEXT, axis TEXT, shared_axiom TEXT,
+                               a_side TEXT, b_side TEXT, note TEXT, evidence_type TEXT);
     CREATE TABLE bets(tag TEXT, title TEXT, desc TEXT, status TEXT, owner TEXT, date TEXT, source TEXT);
     CREATE TABLE risks(level TEXT, title TEXT, desc TEXT, status TEXT, mitigation TEXT, source TEXT);
     CREATE TABLE commitments(meeting_rowid INTEGER, done INTEGER, from_person TEXT,
@@ -212,6 +228,25 @@ def main():
         for t in d.get("timeline", []):
             c.execute("INSERT INTO timeline VALUES(?,?,?)",
                       (t.get("date", ""), t.get("meeting", ""), t.get("change", "")))
+        for r in d.get("readings", []):
+            res = r.get("resolution") or {}
+            c.execute("INSERT OR REPLACE INTO readings VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                      (r.get("id"), r.get("who", ""), r.get("meeting", ""), r.get("date", ""),
+                       r.get("surface", ""), r.get("reading", ""), r.get("confidence", ""),
+                       r.get("evidence_type", ""), r.get("status", "추정"),
+                       res.get("date", ""), res.get("meeting", ""), res.get("note", "")))
+            for b in r.get("basis", []) or []:
+                c.execute("INSERT INTO reading_basis VALUES(?,?,?,?)",
+                          (r.get("id"), b.get("kind", ""), b.get("detail", ""), b.get("quote", "")))
+        for t in d.get("traps", []):
+            c.execute("INSERT INTO traps VALUES(?,?,?,?,?,?)",
+                      (t.get("who", ""), t.get("model_id", ""), t.get("desc", ""),
+                       t.get("state", ""), t.get("evidence_type", ""), t.get("source", "")))
+        for x in d.get("conflict_axes", []):
+            c.execute("INSERT INTO conflict_axes VALUES(?,?,?,?,?,?,?,?)",
+                      (x.get("a", ""), x.get("b", ""), x.get("axis", ""),
+                       x.get("shared_axiom", ""), x.get("a_side", ""), x.get("b_side", ""),
+                       x.get("note", ""), x.get("evidence_type", "")))
         for b in d.get("bets", []):
             c.execute("INSERT INTO bets VALUES(?,?,?,?,?,?,?)",
                       (b.get("tag", ""), b.get("title", ""), b.get("desc", ""), b.get("status", ""),
@@ -382,6 +417,16 @@ def main():
           f"network edges {q('SELECT COUNT(*) FROM network')} | "
           f"commitments {q('SELECT COUNT(*) FROM commitments')} "
           f"({q('SELECT COUNT(*) FROM commitments WHERE done=0')} open)")
+    n_read = q("SELECT COUNT(*) FROM readings")
+    if n_read:
+        hit = q("SELECT COUNT(*) FROM readings WHERE status='확인됨'")
+        miss = q("SELECT COUNT(*) FROM readings WHERE status='빗나감'")
+        rate = f"{100.0 * hit / (hit + miss):.0f}%" if hit + miss else "—"
+        open_n = n_read - hit - miss
+        n_traps, n_axes = q("SELECT COUNT(*) FROM traps"), q("SELECT COUNT(*) FROM conflict_axes")
+        print(f"  readings(대화 의도): {n_read}건 · 미확인 {open_n} · "
+              f"확인 {hit} / 빗나감 {miss} (적중률 {rate}) | "
+              f"traps {n_traps} | conflict_axes {n_axes}")
     if n_utt:
         pct = lambda k: f"{100.0 * spk_stats[k] / n_utt:.1f}%"
         print(f"  speaker attribution: canonical {pct('canonical')} · other-name {pct('raw-name')}"

@@ -101,6 +101,37 @@ SELECT team, GROUP_CONCAT(name, ', ') FROM people WHERE team != '' GROUP BY team
 SELECT name, relationship FROM people WHERE relationship != '';   -- 나와의 관계별
 ```
 
+#### 대화 의도 (readings) — "그래서 저 사람이 원한 게 뭐였지?"
+
+```sql
+-- 이 사람에 대해 아직 확인 안 된 의도 추정 (미팅 전에 이것부터)
+SELECT r.date, r.surface, r.reading, r.confidence,
+       group_concat(b.kind || CASE WHEN b.detail<>'' THEN '('||b.detail||')' ELSE '' END, ', ') AS 신호
+FROM readings r LEFT JOIN reading_basis b ON b.reading_id = r.id
+WHERE r.who = ? AND r.status = '추정'
+GROUP BY r.id ORDER BY r.date DESC;
+
+-- 적중률: 이 층을 얼마나 믿을지 정하는 숫자 (전체 / 인물별)
+SELECT who, SUM(status='확인됨') AS 확인, SUM(status='빗나감') AS 빗나감,
+       ROUND(100.0*SUM(status='확인됨')/NULLIF(SUM(status IN ('확인됨','빗나감')),0)) AS 적중률
+FROM readings GROUP BY who ORDER BY 확인+빗나감 DESC;
+
+-- 내가 놓친 것: 답하지 않은 요청·회피한 주제 (owner 포함 전원)
+SELECT r.who, r.date, r.reading, b.kind, b.detail
+FROM readings r JOIN reading_basis b ON b.reading_id = r.id
+WHERE b.kind IN ('무응답','화제전환','마무리발언') AND r.status='추정'
+ORDER BY r.date DESC LIMIT 20;
+
+-- 이 회의에서 나온 모든 읽기 (회의 복기용)
+SELECT who, surface, reading, confidence, status FROM readings WHERE meeting = ?;
+```
+
+**답변 규칙**: readings는 **추정**이다. 반드시 `surface`(실제 발언)와 `basis`(신호)를 함께
+제시하고 "~로 보입니다 (근거: 3회 반복)" 형태로 말한다. 단정하지 않는다. `빗나감`으로
+표시된 과거 추정이 있으면 그 사실도 말한다 — 이 도구의 신뢰는 맞힌 것보다 틀린 걸
+인정하는 데서 온다. 미확인 추정을 상대에게 확인할 방법(다음 미팅에서 던질 질문 한 줄)을
+같이 제안하면 가장 쓸모 있다.
+
 ### Question patterns → how to answer
 
 | User asks (예) | Do |

@@ -19,7 +19,7 @@ Follow the full extraction spec in `assets/EXTRACTION.md`. Summary:
    - **인물 도시에 (people/)** — one file per person (see below; supersedes the old profile cards)
    - **전부** (default recommendation)
 6. **Generate per choice** into `<corpus>/_ontology/`:
-   - Always: `objects.json` per `assets/schema.json` (schema v2: `meta.schema_version: 2`, `people[].type`, `models[].holders/about`, `meetings[].source_id+path`, `meta.processed_source_ids`) — this is the data of record regardless of visualization choice. Working/intermediate files (per-meeting extracts, aggregates) go in `_ontology/_work/<date-label>/`, never loose in `_ontology/`.
+   - Always: `objects.json` per `assets/schema.json` (schema v4 — additive: v2 holder/about, v3 evidence_type/traps/conflict_axes, v4 readings; `meta.schema_version`, `people[].type`, `models[].holders/about`, `meetings[].source_id+path`, `meta.processed_source_ids`) — this is the data of record regardless of visualization choice. Working/intermediate files (per-meeting extracts, aggregates) go in `_ontology/_work/<date-label>/`, never loose in `_ontology/`.
    - **Then validate — mandatory**: `python3 <skill_dir>/scripts/validate.py <corpus_path>`. Fix every ERROR before proceeding; surface WARNs to the user. (Legacy v1 objects.json → run `scripts/migrate_objects.py` first.)
    - **viewer.html 은 다음 뷰를 렌더**(전부 objects.json 파생, 추가 데이터 불필요): 메타패턴(`meta_patterns`, build_meta.py 생성) · **인물 포커스**(한 사람의 구조+관계 SVG 맵+충돌축+관계+함정+사고진화+위임/설득 브리핑) · **팀 정렬 히트맵**(메타테마×인물) · **충돌 축 긴장 지도**(인물 노드, 축=빨강 엣지) · **모델 계보**(first_seen→last_seen). 섹션은 접기/펼치기(개괄 우선). 새 필드/뷰 추가 시 `assets/viewer.html` 템플릿을 고치고 re-embed.
    - HTML → `index.html`: copy `assets/viewer.html`, then **embed** objects.json by replacing the content of `<script id="sample-data" type="application/json">…</script>` and hiding the sample banner (`class="banner"` → `class="banner hidden"`) so it renders on double-click without a server.
@@ -62,7 +62,7 @@ All intermediates live in `<corpus>/_ontology/_work/<date-label>/` (the workdir)
 (`[{id, paths, sids}]`) from catalog entries whose `source_id` is not in
 `meta.processed_source_ids`. One agent per batch writes `extract-<id>.json`:
 `{"batch", "meetings": [{source_id, date, title, instances[], tensions[],
-network_facts[], timeline_signal}]}`. Non-negotiables in the agent prompt:
+network_facts[], timeline_signal, readings[]}]}`. Non-negotiables in the agent prompt:
 
 - holder = canonical registry name only; unmappable generic speakers → SKIP, never guess
 - quote = **EXACT verbatim substring** copied from the transcript (no paraphrase,
@@ -70,6 +70,12 @@ network_facts[], timeline_signal}]}`. Non-negotiables in the agent prompt:
 - evidence "high" needs verbatim + sincerity (jokes/venting are not models)
 - max ~5 significant instances per meeting; financial specifics generalized
 - tensions only for REAL clashes (empty is normal); network_facts for 소개/협업/투자
+- `readings[]` (대화 의도, EXTRACTION.md §7): max ~2 per meeting, each with a `basis[]`
+  signal from the closed set and `confidence` ≤ 보통 — no signal, no reading. Hand the agent
+  the **open 추정 readings for that meeting's participants** and let it resolve them: emitting
+  an EXISTING reading id with status 확인됨/빗나감 + resolution updates it in place
+  (`merge_ontology.py` handles both new and resolving entries; `prepare_synthesis.py` pools
+  them without a synthesis pass, since readings are per-meeting by definition).
 
 **Step 2 — Prepare (script):**
 
@@ -158,3 +164,31 @@ Extract these alongside models (schema_version 3):
 4. **playbook** (per person, when a pattern repeats ≥2×): 1–3 sentences of operating
    instruction — how to work with / persuade this person. Imperative form ("~하라"),
    not personality description.
+
+## v4 — 대화 의도 (readings): what they wanted in THIS conversation
+
+Models answer "what does this person believe?". `readings[]` answers the question the user
+actually has after a meeting: **"그래서 저 사람이 나한테 원한 게 뭐였지?"** — the ask behind
+the ask, the topic they steered around, the concession with a price tag. Full rules in
+`assets/EXTRACTION.md` §7; the non-negotiables:
+
+- **No textual signal → no reading.** `basis[]` must carry at least one of 반복 · 무응답 ·
+  화제전환 · 선제언급 · 마무리발언 · 양보조건 · 되묻기 · 호칭변화, with the concrete detail
+  (the count, the unanswered question) and a verbatim quote where one exists.
+  validate.py grounds those quotes in the transcript exactly like model quotes.
+- **`confidence` never exceeds `보통`**, and `surface` (what they said) is required next to
+  `reading` (what you inferred) — renderers show both, always.
+- **Extract readings for the owner too.** A request the user never answered, a question they
+  never asked back — 유저가 놓친 것의 절반은 본인 쪽에 있다.
+- **Every incremental run RE-CHECKS open readings first.** Before extracting new ones, take
+  the `status: 추정` readings and look for confirmation or contradiction in the new
+  transcripts; set `확인됨`/`빗나감` with the resolving meeting. This is not optional
+  bookkeeping — it is the only thing that makes the layer honest, and validate.py reports
+  the resulting **적중률**. If the hit rate goes bad, show fewer readings, not louder ones.
+- Readings are per-meeting and stay per-meeting. If the same intent recurs across meetings
+  and gets confirmed, that has become a **model** (or a `bets[]` entry) — promote it there
+  and link with `related_models` instead of accumulating duplicate readings.
+
+`build_db.py` stores them in `readings` + `reading_basis` (and, as of the same change,
+`traps` + `conflict_axes`), so query mode can cite them with dates and signals.
+`build_dossiers.py` renders them per person with ❓/✅/❌ and the person's hit rate.

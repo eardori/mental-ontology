@@ -11,6 +11,7 @@ description: >
   Use when the user says things like: "회의 녹음 가져와서 정리해줘", "Plaud 녹음 분석해줘",
   "멘탈모델 온톨로지 만들어줘", "새 미팅 코퍼스에 추가해줘", "온톨로지에 물어봐줘",
   "X는 어떻게 생각해?", "이 사람에게 맡겨도 될까", "미팅 준비해줘", "회의 데이터로 사업 아이디어",
+  "저 사람이 원한 게 뭐야", "내가 놓친 거 있어", "이 목소리 누구야",
   "전략 짜줘", "process my Plaud recordings", "build a mental model ontology",
   "query the ontology", "find opportunities in my meetings", "strategy from my meeting data".
 ---
@@ -28,7 +29,7 @@ summary alone** (details, formats, and guardrails live in the stage files):
 | 3 | Speaker attribution (+voiceprint, backfill, 조직도) | auto; "화자 정리해줘", "이 목소리 누구야", "조직도 입력해줘" | `stages/ingest.md` |
 | 4–5 | Clean & save · Index & refresh | auto after fetch | `stages/ingest.md` |
 | 6–7 | Ontology analysis · Database (+batch pipeline) | "온톨로지 분석해줘", "회의 N개 반영해줘" | `stages/ontology.md` |
-| 8 | **Query mode** — Q&A over the data | "X는 어떻게 생각해?", "미팅 준비해줘" | `stages/answer.md` |
+| 8 | **Query mode** — Q&A over the data | "X는 어떻게 생각해?", "미팅 준비해줘", "내가 뭘 놓쳤지?" | `stages/answer.md` |
 | 9 | **Strategy mode** — ideation & planning | "사업 아이디어", "전략 짜줘", "정렬 점검" | `stages/answer.md` |
 
 Stages 1–5 run per-recording; 6–7 over the corpus; 8–9 are the daily payoff — most
@@ -50,6 +51,9 @@ When the skill activates mid-life of a corpus (config exists), take 10 seconds:
   never re-emits transcript bodies. Applies to every stage.
 - **Honesty**: evidence grades are earned (`high` needs verified verbatim + sincerity);
   STALE models are answered in past tense; simulations are labeled; never fabricate.
+  **Readings (대화 의도) are inferences**: always shown with what was actually said and the
+  signal behind them, capped at `보통`, and settled later as 확인됨/빗나감 so the layer's
+  hit rate is visible. 맞히는 척하는 것보다 모른다고 하는 게 낫다.
 - **Friction budget**: at most ONE batched interactive question per sync; everything
   else defers to backfill flows.
 - **Privacy**: corpus + ontology are highly sensitive (finances, personnel — and with
@@ -79,7 +83,7 @@ Stage details: `stages/ingest.md` (0–5) · `stages/ontology.md` (6–7 + batch
 
 - `assets/EXTRACTION.md` — extraction spec (model definition, holder/about, grading, batch rules)
 - `assets/PLAYBOOK.md` — query recipes (Part 1) + strategy workflows S1–S5 (Part 2)
-- `assets/schema.json` — objects.json JSON Schema (v2) · `assets/corpus-structure.md` — folder layout
+- `assets/schema.json` — objects.json JSON Schema (v4) · `assets/corpus-structure.md` — folder layout
 - `assets/viewer.html` — self-contained viewer
 - `scripts/` — `build_index` · `build_db` · `build_dossiers` · `validate` ·
   `prepare_synthesis` + `merge_ontology` (batch pipeline) · `migrate_objects` (v1→v2) ·

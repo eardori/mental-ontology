@@ -112,6 +112,28 @@ def objects_v2(m1_path, m2_path):
         "bets": [{"tag": "test", "title": "구독료 단계적 인상", "status": "진행중",
                   "owner": "정우진", "date": "2026-05-20", "source": ["2026-05-20"]}],
         "timeline": [{"date": "2026-05-20", "meeting": "m1", "change": "방향 제시"}],
+        "readings": [
+            {"id": "r-1", "who": "정우진", "meeting": "m1", "date": "2026-05-20",
+             "surface": "속도가 먼저다, 일단 던지고 배운다",
+             "reading": "이번 분기 안에 뭐라도 내보내길 원한다",
+             "basis": [{"kind": "반복", "detail": "2회",
+                        "quote": "속도가 먼저다, 일단 던지고 배운다"},
+                       {"kind": "마무리발언", "detail": "회의 종료 직전"}],
+             "confidence": "보통", "evidence_type": "direct", "status": "추정",
+             "related_models": ["speed-first"]},
+            {"id": "r-2", "who": "이서연", "meeting": "m1", "date": "2026-05-20",
+             "surface": "번들 기능 스펙은 다음 주에", "reading": "리소스 부족을 우회적으로 말한다",
+             "basis": [{"kind": "양보조건", "detail": "동의하되 기한을 미룸"}],
+             "confidence": "낮음", "evidence_type": "direct", "status": "확인됨",
+             "resolution": {"date": "2026-05-21", "meeting": "m2",
+                            "note": "다음 통화에서 인력 요청으로 확인됨"}},
+        ],
+        "traps": [{"who": "정우진", "model_id": "speed-first",
+                   "desc": "선언이 반복되면 신뢰 예산이 소진된다", "state": "미해결",
+                   "evidence_type": "direct", "source": "2026-05-20 회의"}],
+        "conflict_axes": [{"a": "정우진", "b": "이서연", "axis": "속도 vs 가치",
+                           "shared_axiom": "LTV가 전부다", "a_side": "먼저 던진다",
+                           "b_side": "먼저 준다", "evidence_type": "direct"}],
     }
 
 def build_corpus_v2(root):
@@ -223,12 +245,24 @@ def test_pipeline_v2(tmp):
     if fts == "yes":
         got = q("SELECT COUNT(*) FROM utterances_fts WHERE utterances_fts MATCH '별칭'")
         check("FTS search finds utterances", got[0][0] == 2, str(got))
+    got = q("""SELECT r.reading, r.status, COUNT(b.kind) FROM readings r
+               LEFT JOIN reading_basis b ON b.reading_id = r.id
+               WHERE r.who='정우진' GROUP BY r.id""")
+    check("readings land in the DB with their basis signals (queryable, not viewer-only)",
+          got and got[0][1] == "추정" and got[0][2] == 2, str(got))
+    got = q("SELECT resolved_meeting, resolved_note FROM readings WHERE status='확인됨'")
+    check("a resolved reading keeps which meeting settled it", got and got[0][0] == "m2", str(got))
+    check("v3 fields traps/conflict_axes are now queryable too",
+          q("SELECT COUNT(*) FROM traps")[0][0] == 1
+          and q("SELECT COUNT(*) FROM conflict_axes")[0][0] == 1, "")
     db.close()
 
     rc, out = run("validate.py", root)
     check("validate passes on clean v2 corpus", rc == 0, out)
     check("validate reports attribution coverage", "coverage:" in out, out)
-    check("quote verification: grounded quote passes", "quotes: 1/1 grounded" in out, out)
+    check("quote verification covers model quotes AND reading basis quotes",
+          "quotes: 2/2 grounded" in out, out)
+    check("validate reports the reading hit rate", "적중률 100%" in out, out)
 
 def test_dossiers(tmp):
     print("\n[1b] build_dossiers — person dossiers, INDEX, manual-notes preservation")
@@ -259,6 +293,65 @@ def test_dossiers(tmp):
     check("INDEX lists core tier", "Core" in idx and "정우진" in idx, idx[:300])
     check("INDEX auto-collects contacts (Naomi Park, Mina)",
           "Naomi Park" in idx and "Mina" in idx, "")
+
+def readings_case(base, mutate):
+    """copy the clean corpus, mutate readings[], return validate's output"""
+    import copy
+    d = json.loads((base / "_ontology" / "objects.json").read_text(encoding="utf-8"))
+    mutate(d)
+    write(base / "_ontology" / "objects.json", json.dumps(d, ensure_ascii=False))
+    return run("validate.py", base)
+
+def test_readings(tmp):
+    print("\n[7] readings — 대화 의도 layer: grounded, capped, and accountable")
+    root = tmp / "corpus_v2"
+    doss = (root / "people" / "정우진.md").read_text(encoding="utf-8")
+    check("dossier renders the reading with what was actually said",
+          "## 대화 의도" in doss and "이번 분기 안에 뭐라도" in doss
+          and '실제 발언: "속도가 먼저다' in doss, doss[:600])
+    check("dossier shows the justifying signals",
+          "신호:" in doss and "반복(2회)" in doss, doss[:600])
+    check("dossier warns that a reading is an inference, not a statement",
+          "**추정**입니다" in doss and "본인이 그렇게 말한 적은 없습니다" in doss, doss[:600])
+    doss2 = (root / "people" / "이서연.md").read_text(encoding="utf-8")
+    check("a confirmed reading is marked confirmed with its resolving meeting",
+          "✅" in doss2 and "확인됨" in doss2, doss2[:800])
+
+    bad = tmp / "corpus_reads"
+    shutil.copytree(root, bad)
+    rc, out = readings_case(bad, lambda d: d["readings"][0].update(confidence="높음"))
+    check("confidence 높음 is rejected — an intent reading is never high evidence",
+          rc == 1 and "높음" in out, out)
+    rc, out = readings_case(bad, lambda d: (d["readings"][0].update(confidence="보통", basis=[])))
+    check("a reading with no textual signal is rejected as mind-reading",
+          rc == 1 and "mind-reading" in out, out)
+    rc, out = readings_case(bad, lambda d: d["readings"][0].update(
+        basis=[{"kind": "직감", "detail": "표정"}]))
+    check("basis kind must come from the closed signal set",
+          rc == 1 and "직감" in out, out)
+    rc, out = readings_case(bad, lambda d: (
+        d["readings"][0].update(basis=[{"kind": "반복", "detail": "2회"}]),
+        d["readings"][1].pop("resolution")))
+    check("a resolved status without the resolving meeting is rejected",
+          rc == 1 and "resolution" in out, out)
+    rc, out = readings_case(bad, lambda d: (
+        d["readings"][1].update(resolution={"date": "2026-05-21", "meeting": "m9"})))
+    check("resolution must point at a real meeting", rc == 1 and "m9" in out, out)
+    rc, out = readings_case(bad, lambda d: (
+        d["readings"][1].update(resolution={"date": "2026-05-21", "meeting": "m2"}),
+        d["readings"][0].update(who="없는사람")))
+    check("a reading about someone outside the registry is rejected",
+          rc == 1 and "없는사람" in out, out)
+    rc, out = readings_case(bad, lambda d: (
+        d["readings"][0].update(who="정우진"),
+        d["readings"].extend([
+            {"id": f"r-m{i}", "who": "정우진", "meeting": "m1", "date": "2026-05-20",
+             "surface": "s", "reading": "r", "basis": [{"kind": "반복", "detail": "2회"}],
+             "confidence": "낮음", "status": "빗나감",
+             "resolution": {"date": "2026-05-21", "meeting": "m2", "note": "아님"}}
+            for i in range(5)])))
+    check("a layer that mostly misses says so instead of getting louder",
+          rc == 0 and "적중률 17%" in out and "비중을 줄이고" in out, out)
 
 def test_validate_catches_errors(tmp):
     print("\n[2] validate — must catch integrity & honesty violations")
@@ -360,6 +453,17 @@ def test_batch_pipeline(tmp):
                       "note": "속도 vs 검증", "direction": "one-way"}],
         "network_facts": [{"a": "Acme", "b": "그로우캐피탈", "kind": "투자", "note": "자사 엣지 — 드롭돼야 함"},
                           {"a": "박도현", "b": "제임스(정우진)", "kind": "협업", "note": "변형 이름 — 정규화돼야 함"}],
+        "readings": [
+            {"id": "r-b00-1", "who": "정우진", "meeting": "m1", "date": "2026-06-01",
+             "surface": "채용은 천천히 해도 된다", "reading": "이번 분기 안에 팀을 늘리길 원한다",
+             "basis": [{"kind": "선제언급", "detail": "안건 첫 순서로 꺼냄"}],
+             "confidence": "보통", "status": "추정"},
+            {"id": "r-1", "who": "정우진", "status": "확인됨",
+             "resolution": {"date": "2026-06-01", "meeting": "m1",
+                            "note": "6월 회의에서 직접 확인됨"}},
+            {"id": "r-junk", "who": "Speaker 3", "surface": "x", "reading": "y",
+             "basis": [{"kind": "반복", "detail": "1회"}], "confidence": "낮음",
+             "status": "추정"}],
         "timeline_signal": "채용 확대 국면 진입"}]}, ensure_ascii=False), encoding="utf-8")
     (W / "batches.json").write_text(json.dumps([{"id": "b00", "sids": ["acme-9001"]}]), encoding="utf-8")
 
@@ -399,6 +503,17 @@ def test_batch_pipeline(tmp):
     check("new model merged", "hiring-culture-fit-first" in m, "")
     check("이서연's untouched model carried over", "value-first" in m
           and m["value-first"]["holders"] == ["이서연"], "")
+    reads = {r["id"]: r for r in d.get("readings", [])}
+    check("batch pipeline carries new readings (대화 의도 survives a bulk catch-up)",
+          "r-b00-1" in reads and reads["r-b00-1"]["who"] == "정우진", str(list(reads)))
+    check("an agent's re-check resolves the open reading in place",
+          reads["r-1"]["status"] == "확인됨"
+          and reads["r-1"]["resolution"]["meeting"] == "m1"
+          and reads["r-1"]["surface"].startswith("속도가 먼저다"), str(reads.get("r-1")))
+    check("a reading held by a non-canonical speaker is dropped, not guessed",
+          "r-junk" not in reads, str(list(reads)))
+    check("readings that were already resolved are not double-counted",
+          "+reading 1" in out and "resolved 1" in out, out)
     check("one-way tension merged into relations",
           any(r.get("topic") == "채용 속도" and r.get("direction") == "one-way"
               for r in d["relations"]), str(d["relations"][-1]))
@@ -660,6 +775,7 @@ def main():
         tmp = Path(td)
         test_pipeline_v2(tmp)
         test_dossiers(tmp)
+        test_readings(tmp)
         test_validate_catches_errors(tmp)
         test_batch_pipeline(tmp)
         test_purge_person(tmp)

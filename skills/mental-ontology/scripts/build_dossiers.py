@@ -5,8 +5,9 @@ registry (_meta/speakers.json) and the database (ontology.db).
 Usage: python3 build_dossiers.py <corpus_path>
 
 The dossier is the person-centric artifact of the corpus: identity, personal
-context, mental models (core tier), relations & network, top co-attendees, and
-the full interaction timeline (participants-based — works even for unattributed
+context, 대화 의도 readings (추정 — with the signal that justifies each and whether
+it was later confirmed), mental models (core tier), relations & network, top
+co-attendees, and the full interaction timeline (participants-based — works even for unattributed
 phone calls). A manual-notes section between the markers below survives every
 regeneration:
 
@@ -106,6 +107,32 @@ def dossier(name, entry, db, models_of, out_path):
         for _done, frm, to, text, due, mdate in open_loops:
             arrow = f"{frm or '?'}→{to or '?'}"
             L.append(f"- [ ] ({arrow}) {text}" + (f" · 기한 {due}" if due else "") + f" · `{mdate}`")
+        L.append("")
+
+    # 대화 의도(readings) — the "you were in the room and missed this" layer.
+    # Open ones first: those are the ones still worth acting on.
+    reads = q("""SELECT id, date, surface, reading, confidence, status,
+                        resolved_date, resolved_note
+                 FROM readings WHERE who = ?
+                 ORDER BY CASE status WHEN '추정' THEN 0 ELSE 1 END, date DESC""", name)
+    if reads:
+        hits = sum(1 for r in reads if r[5] == "확인됨")
+        misses = sum(1 for r in reads if r[5] == "빗나감")
+        rate = f" · 적중 {hits}/{hits + misses}" if hits + misses else ""
+        L.append(f"## 대화 의도 (추정 {len([r for r in reads if r[5] == '추정'])}건{rate})")
+        L.append("> 아래는 **추정**입니다 — 본인이 그렇게 말한 적은 없습니다. "
+                 "확인되면 상태를 갱신하고, 빗나가면 그대로 남겨 적중률에 반영하세요.")
+        MARK = {"추정": "❓", "확인됨": "✅", "빗나감": "❌"}
+        for rid, rdate, surface, reading, conf, status, rdd, rnote in reads[:12]:
+            basis = db.execute("SELECT kind, detail FROM reading_basis WHERE reading_id = ?",
+                               (rid,)).fetchall()
+            sig = ", ".join(f"{k}{'(' + dtl + ')' if dtl else ''}" for k, dtl in basis)
+            L.append(f"- {MARK.get(status, '❓')} `{rdate}` **{reading}** ({conf})")
+            L.append(f"    - 실제 발언: \"{surface}\"")
+            if sig:
+                L.append(f"    - 신호: {sig}")
+            if status != "추정" and (rnote or rdd):
+                L.append(f"    - {status} `{rdd}` {rnote}")
         L.append("")
 
     if models_of.get(name):

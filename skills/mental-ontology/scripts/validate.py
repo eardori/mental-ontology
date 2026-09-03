@@ -8,6 +8,8 @@ Checks
   structure   required fields, enum values, unique model ids
   integrity   holders/about/relations reference people[]; people[].models
               reference models[].id AND the person is one of that model's holders
+  readings    (대화 의도) basis signals present & from the closed set, confidence never
+              높음, status/resolution consistent, quotes grounded, hit rate reported
   honesty     models held only by org-type entities may not be evidence=high
               (a third party's inference about an org is 'mid' at best);
               evidence=high without a quote is flagged
@@ -22,6 +24,10 @@ from datetime import date, timedelta
 
 EV = {"high", "mid", "low"}
 REL = {"agree", "tension", "builds-on"}
+BASIS = {"반복", "무응답", "화제전환", "선제언급", "마무리발언", "양보조건", "되묻기", "호칭변화"}
+READ_STATUS = {"추정", "확인됨", "빗나감"}
+READ_CONF = {"낮음", "보통"}          # 높음 is never allowed — a reading is an inference
+OPEN_READING_DAYS = 90                # 추정 older than this vs the newest meeting → nag
 STALE_DAYS = 180  # last_seen older than this (vs newest meeting) → belief may have changed
 
 def _norm_text(s):
@@ -243,6 +249,79 @@ def main():
         if m.get("evidence") == "high" and not m.get("quote"):
             warns.append(f"models[{i}]: evidence=high but no supporting quote")
 
+    # --- readings (대화 의도) ---
+    readings = d.get("readings", [])
+    meet_ids = {m.get("id") for m in d.get("meetings", [])}
+    rids, open_reads, hits, misses = set(), [], 0, 0
+    for r in readings:
+        rid = r.get("id") or "<no-id>"
+        if not r.get("id"):
+            errors.append("readings[]: entry without id")
+        elif rid in rids:
+            errors.append(f"readings[{rid}]: duplicate id")
+        rids.add(rid)
+        who = r.get("who")
+        if not who:
+            errors.append(f"readings[{rid}]: no 'who'")
+        elif who not in names and who not in reg_names:
+            errors.append(f"readings[{rid}]: who '{who}' is neither in people[] nor the registry")
+        if meet_ids and r.get("meeting") and r["meeting"] not in meet_ids:
+            errors.append(f"readings[{rid}]: meeting '{r['meeting']}' not in meetings[]")
+        if not r.get("surface") or not r.get("reading"):
+            errors.append(f"readings[{rid}]: both 'surface' (said) and 'reading' (inferred) "
+                          "are required — a reading must never be shown without what was said")
+        basis = r.get("basis") or []
+        if not basis:
+            errors.append(f"readings[{rid}]: no basis — a reading without a textual signal "
+                          "is mind-reading, not extraction")
+        for b in basis:
+            if b.get("kind") not in BASIS:
+                errors.append(f"readings[{rid}]: basis kind '{b.get('kind')}' not in {sorted(BASIS)}")
+            if not b.get("detail"):
+                warns.append(f"readings[{rid}]: basis '{b.get('kind')}' without detail "
+                             "(count / the unanswered question / the topic switched away from)")
+        if r.get("confidence") not in READ_CONF:
+            errors.append(f"readings[{rid}]: confidence must be one of {sorted(READ_CONF)} "
+                          "— an intent reading is never '높음'")
+        st = r.get("status", "추정")
+        if st not in READ_STATUS:
+            errors.append(f"readings[{rid}]: status must be one of {sorted(READ_STATUS)}")
+        if st == "추정":
+            open_reads.append(r)
+        else:
+            hits += st == "확인됨"
+            misses += st == "빗나감"
+            res = r.get("resolution") or {}
+            if not (res.get("meeting") or res.get("date")):
+                errors.append(f"readings[{rid}]: status '{st}' without a resolution "
+                              "(which later meeting settled it)")
+            elif res.get("meeting") and meet_ids and res["meeting"] not in meet_ids:
+                errors.append(f"readings[{rid}]: resolution.meeting '{res['meeting']}' not in meetings[]")
+        for mid in r.get("related_models", []):
+            if mid not in mids:
+                warns.append(f"readings[{rid}]: related_models '{mid}' is not a known model id")
+    if readings:
+        rate = f"{100.0 * hits / (hits + misses):.0f}%" if hits + misses else "미측정"
+        infos.append(f"readings: {len(readings)}건 · 미확인 {len(open_reads)} · "
+                     f"확인 {hits} / 빗나감 {misses} — 적중률 {rate}")
+        if hits + misses >= 5 and hits < misses:
+            warns.append(f"readings: 적중률 {rate} — 의도 추정이 절반 이상 빗나갔습니다. "
+                         "브리핑에서 비중을 줄이고 basis 규칙을 다시 보세요 "
+                         "(맞히는 척하는 것보다 모른다고 하는 게 낫습니다).")
+        newest_meeting = max((m.get("date", "") for m in d.get("meetings", [])), default="")
+        if newest_meeting and open_reads:
+            def age(r):
+                try:
+                    return (date.fromisoformat(newest_meeting[:10])
+                            - date.fromisoformat(str(r.get("date", ""))[:10])).days
+                except (ValueError, TypeError):
+                    return 0
+            stale_open = [r for r in open_reads if age(r) > OPEN_READING_DAYS]
+            if stale_open:
+                warns.append(f"readings: {len(stale_open)} open 추정 older than "
+                             f"{OPEN_READING_DAYS} days never got resolved "
+                             f"(e.g. {stale_open[0].get('id')}) — 확인하거나 지우세요")
+
     # --- provenance ---
     cat_ids = set()
     cat_path = os.path.join(corpus, "_index", "catalog.json")
@@ -278,7 +357,12 @@ def main():
                       or ["no"])[0] == "yes"
             total = c.execute("SELECT COUNT(*) FROM utterances").fetchone()[0]
             if total:
-                checked, missq = verify_quotes(c, models, fts_on)
+                # basis quotes are graded exactly like model quotes — an intent reading
+                # resting on an ungrounded quote is the worst failure mode this tool has
+                quoted_basis = [{"id": f"{r.get('id')}/{b.get('kind')}", "quote": b.get("quote")}
+                                for r in d.get("readings", [])
+                                for b in (r.get("basis") or []) if b.get("quote")]
+                checked, missq = verify_quotes(c, models + quoted_basis, fts_on)
                 if missq:
                     warns.append(f"{len(missq)}/{checked} model quotes NOT grounded in any "
                                  f"utterance (환각이거나 원문 유실 — 재확인 필요): "

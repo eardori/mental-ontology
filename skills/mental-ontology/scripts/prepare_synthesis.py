@@ -9,7 +9,7 @@ Reads   <workdir>/extract-b*.json      (written by extraction agents)
         <corpus>/_meta/speakers.json     (canonical holders)
 Writes  <workdir>/synth-task-<key>.json  {existing_models, instances}
         <workdir>/synth_keys.json        (keys that NEED a synthesis agent)
-        <workdir>/pool_tensions.json, pool_network.json, pool_timeline.json
+        <workdir>/pool_tensions.json, pool_network.json, pool_timeline.json, pool_readings.json
 
 Assignment: every existing model belongs to exactly ONE task (primary holder =
 holders[0]); a person whose workload exceeds --split-threshold is split by
@@ -34,7 +34,7 @@ def main():
     processed = set(onto.get("meta", {}).get("processed_source_ids", []))
 
     by_person = defaultdict(list)
-    tensions, network, timeline = [], [], []
+    tensions, network, timeline, readings = [], [], [], []
     n_meet, n_skip_done, dropped = 0, 0, Counter()
     for p in sorted(glob.glob(os.path.join(work, "extract-b*.json"))):
         try:
@@ -59,6 +59,15 @@ def main():
                 tensions.append({**t, **ctx})
             for nf in m.get("network_facts", []):
                 network.append({**nf, **ctx})
+            for r in m.get("readings", []):
+                # readings are per-meeting observations — no synthesis pass, just pooled
+                # (a recurring, confirmed intent belongs in models[], not here)
+                who = norm(r.get("who", ""))
+                if who not in canon:
+                    dropped[who or "<empty>"] += 1
+                    continue
+                readings.append({**r, "who": who, "date": r.get("date") or ctx["mtg_date"],
+                                 "mtg_source_id": ctx["mtg_source_id"]})
             if m.get("timeline_signal"):
                 timeline.append({"date": ctx["mtg_date"], "title": ctx["mtg_title"],
                                  "signal": m["timeline_signal"]})
@@ -109,13 +118,16 @@ def main():
     json.dump(network, open(f"{work}/pool_network.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     json.dump(sorted(timeline, key=lambda x: x["date"]),
               open(f"{work}/pool_timeline.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    json.dump(readings, open(f"{work}/pool_readings.json", "w", encoding="utf-8"),
+              ensure_ascii=False, indent=1)
 
     print(f"OK: {n_meet} meetings ({n_skip_done} already-processed skipped) → "
           f"{len(merged)} tasks, {len(need_agent)} need a synthesis agent")
     for k, t in sorted(merged.items(), key=lambda x: -len(x[1]["instances"])):
         mark = "" if k in need_agent or k.replace("/", "-") in need_agent else "  (no instances — carries over)"
         print(f"  {k:32} existing={len(t['existing_models']):3} instances={len(t['instances']):3}{mark}")
-    print(f"pools: tensions {len(tensions)} | network {len(network)} | timeline {len(timeline)}")
+    print(f"pools: tensions {len(tensions)} | network {len(network)} | timeline {len(timeline)} "
+          f"| readings {len(readings)}")
     if dropped:
         print(f"WARN: {sum(dropped.values())} instances dropped (non-canonical holder) — "
               f"top: {dropped.most_common(5)}")

@@ -81,6 +81,67 @@ connected*: 소개(who introduced whom — the most valuable edge for a networke
 ("○○님 소개로 뵙게 됐습니다" → `{a: 소개자, b: 소개받은 사람, kind: "소개"}`).
 Network members may be registry people not present in the ontology's `people[]`.
 
+### 7) Readings — 대화 의도 (what they wanted in THIS conversation)
+
+A model is a **reusable belief**. A reading is the opposite unit: **what one person
+was actually after in one specific conversation** — the ask behind the ask, the thing
+they steered around, the concession they attached a price to. The user was in the room
+and missed it; the transcript still holds the trace. This is the layer that turns a
+meeting archive into relationship intelligence, and it is also the easiest place in
+this whole tool to produce confident nonsense, so the rules are strict.
+
+**A reading REQUIRES a textual signal.** No signal in the transcript → no reading, no
+exceptions. "느낌상 불편해 보였다" is not extractable — STT has no tone channel.
+The signal goes in `basis[]`, and `kind` must come from this closed set:
+
+| kind | what it is | why it means something |
+|---|---|---|
+| `반복` | raised the same thing N times (record N) | 사람은 중요한 걸 반복한다 |
+| `무응답` | a direct question they did not answer | 회피는 답보다 많은 걸 말한다 |
+| `화제전환` | steered off a topic someone opened | 위와 같음, 능동형 |
+| `선제언급` | brought it up unprompted, early | 미리 준비해 온 안건 |
+| `마무리발언` | said it at the very end | 진짜 용건은 문 앞에서 나온다 |
+| `양보조건` | agreed, but attached a condition | 조건이 실제 요구다 |
+| `되묻기` | answered a question with a question | 판단을 유보하거나 정보를 더 원한다 |
+| `호칭변화` | form of address / register shifted | 거리 조정 — 가까워지거나 멀어짐 |
+
+Each basis entry carries `detail` (the count, the unanswered question, the topic
+switched away from) and, where one exists, a **verbatim `quote`** — grounded exactly
+like model quotes, and checked by validate.py.
+
+**Confidence caps at `보통`.** A reading is an inference about a mind, never `높음`.
+If it feels like `높음`, the person probably just said it outright — that is a model
+or an action item, not a reading.
+
+**Status is a promise to check back**: every reading starts `추정` and is resolved by a
+LATER meeting into `확인됨` or `빗나감`, with the resolving meeting recorded. On every
+incremental run, re-check open readings against the new transcripts before extracting
+new ones. validate.py prints the **hit rate** — a tool that guesses at intent must be
+able to say how often it was right, and to the user's face. A layer with a bad hit rate
+should be shown less, not louder.
+
+**Read the ask, not the character.** "예산 승인을 원한다" is a reading; "권력욕이 있다"
+is a verdict, and this tool does not issue verdicts. Intent, request, hesitation,
+condition, discomfort-about-a-topic: yes. Personality diagnosis, motive-guessing about
+someone's private life, anything the person would experience as an accusation: no.
+Same policy as `personal[].use` — if surfacing it in a briefing would feel invasive,
+it does not belong here.
+
+**Read the owner too.** The most valuable readings are often about the user: a request
+they did not answer, a question they never asked back, a commitment they made in
+passing. "유저가 놓친 것"의 절반은 상대가 아니라 본인 쪽에 있다.
+
+```json
+{ "id": "r-2026-08-14-정우진-1", "who": "정우진", "meeting": "m12",
+  "date": "2026-08-14",
+  "surface": "일정은 천천히 가도 된다고 하셨지만",
+  "reading": "실제로는 이번 분기 안에 파일럿 결과를 원한다",
+  "basis": [{"kind": "반복", "detail": "3회", "quote": "연말 보고 때 뭐라도 있어야"},
+            {"kind": "마무리발언", "detail": "회의 종료 직전", "quote": "아 그리고 파일럿은…"}],
+  "confidence": "보통", "evidence_type": "direct", "status": "추정",
+  "related_models": ["speed-over-polish"] }
+```
+
 ### Quality principles
 - **No flattery, stay neutral** — capture how people actually think, not a nice version.
 - **Invent nothing** — no people or models without transcript grounding.
@@ -99,7 +160,11 @@ agents), then **cluster instances into canonical models** (one strong pass):
   closest set fitting the org);
 - keep canonical model **ids stable across re-runs** so incremental merges work.
 
-## Output schema — objects.json (schema v2)
+## Output schema — objects.json (schema v4)
+
+Versions are additive: v2 split holder/about, v3 added `evidence_type`/`traps`/
+`conflict_axes`/`playbook`, v4 adds `readings`. Older files stay valid; new fields
+appear as they are extracted.
 
 See `schema.json` for the JSON Schema. Shape:
 
@@ -129,7 +194,15 @@ See `schema.json` for the JSON Schema. Shape:
   "network": [{ "a": "", "b": "", "kind": "소개|협업|투자|사제|친분|거래|경쟁|기타", "since": "", "note": "", "source": "" }],
   "bets": [{ "tag": "", "title": "", "desc": "", "status": "검토중|진행중|보류|폐기|실현", "owner": "", "date": "", "source": [], "related_models": [] }],
   "risks": [{ "level": "high|mid|low", "title": "", "desc": "", "status": "관찰중|완화중|해소|현실화", "mitigation": "", "source": [] }],
-  "timeline": [{ "date": "", "meeting": "m1", "change": "" }]
+  "timeline": [{ "date": "", "meeting": "m1", "change": "" }],
+  "readings": [{ "id": "r-<date>-<who>-<n>", "who": "", "meeting": "m1", "date": "",
+                 "surface": "what they actually said", "reading": "what they were after",
+                 "basis": [{ "kind": "반복|무응답|화제전환|선제언급|마무리발언|양보조건|되묻기|호칭변화",
+                             "detail": "", "quote": "" }],
+                 "confidence": "낮음|보통", "evidence_type": "direct|hearsay",
+                 "status": "추정|확인됨|빗나감",
+                 "resolution": { "date": "", "meeting": "m3", "note": "" },
+                 "related_models": [] }]
 }
 ```
 

@@ -12,6 +12,11 @@ the DB + transcripts, per **`assets/PLAYBOOK.md` Part 1**. Core discipline:
   timeline, topic ownership) → **Read the actual transcript** (`meetings.path`) for
   nuance → answer with citations `(date · meeting)` and evidence grades.
 - Honesty: `high` assert / `mid` mark as 추정 / `low` say 근거 부족. Never fabricate.
+- **Readings (대화 의도) are 추정, never fact.** Cite them with the actual words
+  (`surface`) and the signal (`basis`) — "3회 반복 + 마무리발언" — and say 추정 out loud.
+  Mention past `빗나감` readings about that person when relevant; an honest miss buys more
+  trust than a hidden one. When the user asks "저 사람이 뭘 원하는 거야 / 내가 뭘 놓쳤어",
+  this layer is the answer, paired with the open commitments.
 - **Freshness**: a model whose `last_seen` is 6+ months behind the newest meeting
   (validate.py flags these as STALE) is answered in past tense — "당시에는 ~라고
   봤습니다 (이후 확인 없음)" — never as their current view. People change.

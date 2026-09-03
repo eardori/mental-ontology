@@ -5,7 +5,7 @@ Usage: python3 merge_ontology.py <corpus> <workdir> [--apply]
 
 Reads   <corpus>/_ontology/objects.json    (base — models assigned to tasks are replaced)
         <workdir>/synth_keys.json + synth-<key>.json + synth-task-<key>.json
-        <workdir>/pool_tensions.json / pool_network.json / pool_timeline.json
+        <workdir>/pool_tensions.json / pool_network.json / pool_timeline.json / pool_readings.json
         <workdir>/batches.json             (optional — marks source_ids as processed)
 Writes  <corpus>/_ontology/objects.json    (--apply; numbered backup kept)
 
@@ -128,7 +128,7 @@ def main():
     def load(name):
         p = f"{work}/{name}"
         return json.load(open(p, encoding="utf-8")) if os.path.exists(p) else []
-    added = {"tension": 0, "network": 0, "timeline": 0}
+    added = {"tension": 0, "network": 0, "timeline": 0, "reading": 0, "resolved": 0}
     have_rel = {(r.get("from"), r.get("to"), r.get("topic", "")) for r in base.get("relations", [])}
     for t in load("pool_tensions.json"):
         k3 = (t.get("from"), t.get("to"), t.get("topic", ""))
@@ -164,6 +164,24 @@ def main():
                 have_tl.add((s["date"], s["signal"]))
                 added["timeline"] += 1
     base.get("timeline", []).sort(key=lambda t: t.get("date", ""))
+    # readings (대화 의도): pooled per-meeting, deduped by id. Resolutions supplied by the
+    # extraction agents (status 확인됨/빗나감 for an EXISTING id) update in place — that
+    # re-check is what keeps the hit rate honest.
+    by_id = {r.get("id"): r for r in base.get("readings", [])}
+    for r in load("pool_readings.json"):
+        rid = r.get("id")
+        if not rid or not r.get("who"):
+            continue
+        old_r = by_id.get(rid)
+        if old_r is None:
+            base.setdefault("readings", []).append(r)
+            by_id[rid] = r
+            added["reading"] += 1
+        elif r.get("status") in ("확인됨", "빗나감") and old_r.get("status") == "추정":
+            old_r["status"] = r["status"]
+            old_r["resolution"] = r.get("resolution") or old_r.get("resolution") or {}
+            added["resolved"] += 1
+    base.get("readings", []).sort(key=lambda r: (r.get("date", ""), r.get("id", "")))
 
     # meta
     bp = f"{work}/batches.json"
@@ -176,7 +194,8 @@ def main():
         base["meta"]["date_range"] = f"{dates[0]} ~ {dates[-1]}"
 
     print(f"pools merged: +tension {added['tension']} +network {added['network']} "
-          f"+timeline {added['timeline']} | processed_source_ids "
+          f"+timeline {added['timeline']} +reading {added['reading']} "
+          f"(resolved {added['resolved']}) | processed_source_ids "
           f"{len(base['meta'].get('processed_source_ids', []))}")
     if not apply_:
         print("\nDRY RUN — rerun with --apply to write (numbered backup kept).")
