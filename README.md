@@ -18,7 +18,7 @@
 | `INSTALL.md`                    | Claude가 직접 실행하는 설치 가이드 (한 줄 요청으로 설치)                                                                                                                                                                                                                                                                          |
 | `skills/.../assets/PLAYBOOK.md` | **질문·전략 워크북** — SQL 레시피 + 사업구상/전략 워크플로우 5종                                                                                                                                                                                                                                                                  |
 | `skills/.../assets/viewer.html` | 시각화 뷰어 — `objects.json` 더블클릭/드래그로 열림 (서버·인터넷 불필요). **인물 포커스**(구조+관계 SVG 맵+충돌축+함정+사고진화+위임/설득 브리핑) · **팀 정렬 히트맵**(테마×인물) · **충돌 축 긴장 지도** · **모델 계보 타임라인** · **메타패턴** · 섹션 접기/펼치기                                                              |
-| `skills/.../scripts/`           | `build_db.py`(SQLite DB + 화자 별칭 조인 + 접촉 기록) · `build_dossiers.py`(인물 도시에) · `validate.py`(무결성·정직성·인용 접지 검증) · `prepare_synthesis.py`+`merge_ontology.py`(배치 재추출 파이프라인) · `purge_person.py`(인물 일괄 삭제/익명화) · `consolidate.py`(신뢰도 재보정·중복 탐지·위생) · `build_meta.py`(메타패턴 생성) · `build_index.py` · `whisper_transcribe.py` · `migrate_objects.py`(v1→v2) |
+| `skills/.../scripts/`           | `build_db.py`(SQLite DB + 화자 별칭 조인 + 접촉 기록) · `build_dossiers.py`(인물 도시에) · `validate.py`(무결성·정직성·인용 접지 검증) · `prepare_synthesis.py`+`merge_ontology.py`(배치 재추출 파이프라인) · `voiceprint.py`(목소리로 인물 자동 식별 — 한 번 확인하면 다음부터 자동) · `purge_person.py`(인물 일괄 삭제/익명화) · `consolidate.py`(신뢰도 재보정·중복 탐지·위생) · `build_meta.py`(메타패턴 생성) · `build_index.py` · `whisper_transcribe.py` · `migrate_objects.py`(v1→v2) |
 | `examples/sample-objects.json`  | 완성 예시(가상 Acme) — 뷰어로 바로 열어 결과 형태 확인                                                                                                                                                                                                                                                                            |
 | `tests/run_tests.py`            | 자체 테스트 스위트 — 가상 데이터로 파이프라인 전체 검증 (`python3 tests/run_tests.py`)                                                                                                                                                                                                                                            |
 
@@ -129,6 +129,7 @@ Claude가 스킬 복사 → Plaud MCP 등록까지 자동 수행. 재시작 후 
 ## ❓ FAQ
 
 - **Plaud가 아닌 다른 녹음기여도 되나요?** — 네. 오디오 파일을 주면 Whisper로 로컬 전사합니다(`scripts/whisper_transcribe.py --audio`). Plaud MCP는 자동 수집이 편해질 뿐입니다.
+- **매번 "이 사람 누구야?" 물어보나요?** — 처음 한 번만. 오디오 녹음은 로컬 화자 분리 후 **목소리 지문**(`_meta/voiceprints.json`)과 대조해, 이미 확인된 사람은 자동으로 이름이 붙습니다. 확신이 없으면 점수를 보여주고 물어보지, 짐작으로 붙이지 않습니다. 목소리 데이터는 생체정보 — 전부 로컬에 있고 `purge_person.py`나 `voiceprint.py … forget`으로 지웁니다.
 - **영어 회의도 되나요?** — 됩니다. 전사 언어 옵션(`--lang en`)과 온톨로지 추출 모두 다국어.
 - **DB는 뭘로 보나요?** — 그냥 Claude에게 물으면 됩니다. 직접 보려면 `sqlite3 ontology.db` 또는 아무 SQLite 뷰어.
 - **팀원과 공유해도 되나요?** — 데이터는 민감합니다. 공유 전 반드시 내용 검토를 — 기본은 본인 전용.

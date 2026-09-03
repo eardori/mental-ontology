@@ -24,7 +24,9 @@ base = (os.environ.get("DIAR_MODELS")
                 os.path.expanduser("~/.cache/mental-ontology/diar-models")))
 samples, sr = sf.read(wav_path, dtype="float32")
 if samples.ndim > 1: samples = samples.mean(axis=1)
-assert sr == 16000
+if sr != 16000:
+    sys.exit(f"ERROR: 16kHz mono WAV가 필요합니다 (현재 {sr}Hz). "
+             "ffmpeg -i in.mp3 -ac 1 -ar 16000 in.wav")
 config = sherpa_onnx.OfflineSpeakerDiarizationConfig(
     segmentation=sherpa_onnx.OfflineSpeakerSegmentationModelConfig(
         pyannote=sherpa_onnx.OfflineSpeakerSegmentationPyannoteModelConfig(model=f"{base}/sherpa-onnx-pyannote-segmentation-3-0/model.onnx"), num_threads=8),

@@ -8,6 +8,7 @@ Usage:
 What it does (anonymize mode — the default and only mode):
   transcripts/   speaker labels AND body mentions of the name/aliases → "[삭제된 인물]"
   _meta/speakers.json   registry entry removed
+  _meta/voiceprints.json  the person's voiceprint (biometric) removed
   _ontology/objects.json  people[] entry removed; models held ONLY by them removed,
                 shared models lose them as holder; about/relations/network entries
                 involving them removed; evolution/timeline text left (name replaced)
@@ -88,6 +89,23 @@ def main():
             json.dump([e for e in registry if norm(e.get("name", "")) != name],
                       open(reg_path, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 
+    # 2b) voiceprint — biometric data must not survive a purge
+    vp_path = f"{corpus}/_meta/voiceprints.json"
+    if os.path.exists(vp_path):
+        vp = json.load(open(vp_path, encoding="utf-8"))
+        hit = [k for k in vp.get("people", {}) if norm(k) in toks]
+        if hit:
+            secs = sum(c.get("dur", 0) for k in hit
+                       for c in vp["people"][k].get("centroids", []))
+            changes.append(("_meta/voiceprints.json",
+                            f"voiceprint removed ({secs / 60:.1f}min of voice)"))
+            if apply_:
+                backup(vp_path)
+                for k in hit:
+                    vp["people"].pop(k)
+                json.dump(vp, open(vp_path, "w", encoding="utf-8"),
+                          ensure_ascii=False, indent=1)
+
     # 3) ontology
     opath = f"{corpus}/_ontology/objects.json"
     if os.path.exists(opath):
@@ -143,6 +161,9 @@ def main():
         print(f"  … and {len(changes) - 30} more")
     if apply_:
         print(f"\nBackup: {os.path.relpath(bak_root, corpus)}  (delete it to make the purge final)")
+        if any(rel == "_meta/voiceprints.json" for rel, _ in changes):
+            print("  ⚠ 백업에는 삭제한 사람의 목소리 지문(생체정보)이 그대로 들어 있습니다 — "
+                  "되돌릴 필요가 없어지면 이 폴더를 반드시 삭제하세요.")
         print("Next: build_index.py → build_db.py → build_dossiers.py (rebuild derived data)")
     else:
         print("\nRerun with --apply to execute.")

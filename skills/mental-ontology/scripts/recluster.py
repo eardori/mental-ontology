@@ -25,7 +25,12 @@ base = (os.environ.get("DIAR_MODELS")
                 os.path.expanduser("~/.cache/mental-ontology/diar-models")))
 samples, sr = sf.read(wav_path, dtype="float32")
 if samples.ndim > 1: samples = samples.mean(axis=1)
+if sr != 16000:  # slicing by sr*seconds silently yields garbage embeddings otherwise
+    sys.exit(f"ERROR: 16kHz mono WAV가 필요합니다 (현재 {sr}Hz). "
+             "ffmpeg -i in.mp3 -ac 1 -ar 16000 in.wav")
 regions = json.load(open(regions_json))
+if not regions:
+    sys.exit(f"ERROR: {regions_json} 에 구간이 없습니다 (무음이거나 너무 짧은 오디오).")
 ex = sherpa_onnx.SpeakerEmbeddingExtractor(sherpa_onnx.SpeakerEmbeddingExtractorConfig(model=f"{base}/campplus.onnx", num_threads=8))
 embs, durs = [], []
 for r in regions:

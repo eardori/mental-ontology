@@ -17,6 +17,8 @@ Plain markdown — works standalone or inside an Obsidian vault.
 ├── _meta/
 │   ├── speakers.json             # PERSON REGISTRY (Stage 3) — aliases power DB joins;
 │   │                             #   tier/first_met_context/intro_by/personal[] power dossiers
+│   ├── voiceprints.json          # VOICE IDENTITY (Stage 2b/3) — per-person voice centroids;
+│   │                             #   biometric, local only, purged by purge_person.py
 │   ├── state.json                # {"last_synced": "YYYY-MM-DD"}
 │   └── deletion-candidates.md    # junk recordings to delete in the Plaud app
 ├── _whisper/                     # local transcription workspace
@@ -65,5 +67,22 @@ Plain markdown — works standalone or inside an Obsidian vault.
   도시에 없음 — INDEX에 자동 수집). Registry entries without `tier` default to core.
   People found in transcripts but not in the registry are auto-listed as contacts;
   ≥3 meetings → promotion candidate in `people/INDEX.md`.
-- **Privacy**: the corpus is sensitive. Keep local. If it lives near a git repo, gitignore it.
+- **`voiceprints.json` = who each voice belongs to.** Written by `voiceprint.py` after the
+  user confirms a speaker, and read on every later audio import so the same person is never
+  asked about twice. Shape:
+  ```json
+  {"version": 1, "model": "campplus.onnx", "dim": 192,
+   "people": {"정우진": {"centroids": [
+     {"id": "c1", "vec": [0.031, ...], "dur": 812.4, "n": 5,
+      "sources": ["plaud-abc123"], "updated": "2026-09-03"}]}}}
+  ```
+  Keys are **registry canonical names** (same join key as `speakers.json`). Several centroids
+  per person is normal — a phone call and a dinner table sound different, and each condition
+  earns its own. `dur` is how much speech backs it, so an old sighting never outweighs a
+  well-heard one. It is derived-but-not-rebuildable data (the source audio is usually gone):
+  back it up with the corpus, and never hand-edit `vec`.
+- **Privacy**: the corpus is sensitive. Keep local; if it lives near a git repo, gitignore it.
   Recommended location: a dedicated folder or the user's Obsidian vault (iCloud-synced, off-repo).
+  `voiceprints.json` is **biometric data** — the most sensitive file in the corpus.
+  `purge_person.py` removes a person's voiceprint along with everything else, and
+  `voiceprint.py <corpus> forget --name X --apply` removes just the voice.

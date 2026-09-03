@@ -416,6 +416,13 @@ def test_purge_person(tmp):
     print("\n[5] purge_person — right-to-be-forgotten")
     root, pp = tmp / "corpus_v2", tmp / "corpus_purge"
     shutil.copytree(root, pp)
+    write(pp / "_meta" / "voiceprints.json", json.dumps(
+        {"version": 1, "model": "campplus.onnx", "dim": 4, "people": {
+            "이서연": {"centroids": [{"id": "c1", "vec": vp_vec((0, 1.0)), "dur": 300.0,
+                                      "n": 2, "sources": ["acme-0520"], "updated": "2026-05-20"}]},
+            "정우진": {"centroids": [{"id": "c1", "vec": vp_vec((1, 1.0)), "dur": 400.0,
+                                      "n": 3, "sources": ["acme-0520"], "updated": "2026-05-20"}]}}},
+        ensure_ascii=False))
     rc, out = run("purge_person.py", pp, "--name", "이서연")
     check("purge dry-run exits 0 and lists files", rc == 0 and "DRY RUN" in out
           and "speakers.json" in out, out)
@@ -433,9 +440,220 @@ def test_purge_person(tmp):
     t = (pp / "transcripts" / "2026" / "2026-05" / "2026-05-20_전략회의.md").read_text(encoding="utf-8")
     check("transcript mentions anonymized (alias 서연님 included)",
           "이서연" not in t and "서연님" not in t and "[삭제된 인물]" in t, t[:300])
+    vp = json.loads((pp / "_meta" / "voiceprints.json").read_text(encoding="utf-8"))
+    check("voiceprint purged (biometric data does not survive)",
+          "이서연" not in vp["people"] and "정우진" in vp["people"], str(list(vp["people"])))
     check("backup preserves originals",
           (pp / "_ontology" / "_work").glob("purge-backup-*") is not None
           and "이서연" in next((pp / "_ontology" / "_work").glob("purge-backup-*/_meta/speakers.json")).read_text(encoding="utf-8"), "")
+
+# ---- voiceprint helpers: synthetic unit vectors, no audio/sherpa needed ------
+VP_DIM = 8
+
+def vp_vec(*pairs):
+    v = [0.0] * VP_DIM
+    for i, x in pairs:
+        v[i] = x
+    n = sum(x * x for x in v) ** 0.5
+    return [round(x / n, 6) for x in v]
+
+def vp_emb(path, clusters):
+    """clusters: [(label, vec, dur)] → the --embeddings file voiceprint.py reads."""
+    write(path, json.dumps({"clusters": [{"label": l, "vec": v, "dur": d}
+                                         for l, v, d in clusters]}, ensure_ascii=False))
+    return path
+
+def test_voiceprint(tmp):
+    print("\n[6] voiceprint — persistent speaker identity across recordings")
+    root = tmp / "corpus_vp"
+    write(root / "_meta" / "speakers.json", json.dumps(SPEAKERS, ensure_ascii=False))
+
+    A1 = vp_vec((0, 1.0))                    # 정우진, recording 1
+    A2 = vp_vec((0, 1.0), (1, 0.12))         # 정우진, recording 2 (cos ≈ 0.99)
+    A3 = vp_vec((0, 1.0), (2, 0.15))         # 정우진 again, same recording as A2
+    B1 = vp_vec((1, 1.0))                    # 이서연 (cos with A ≈ 0.12)
+    MAYBE = vp_vec((0, 0.52), (3, 0.85))     # ~0.52 vs A — between floor and accept
+    STRANGER = vp_vec((0, 0.30), (4, 0.95))  # ~0.30 vs A — below floor
+    FARSIDE = vp_vec((0, 0.40), (5, 0.92))   # 정우진 on the phone: cos 0.40 < merge 0.55
+
+    # 1) empty store — nothing is ever guessed
+    e0 = vp_emb(root / "e0.json", [("0", A1, 60.0)])
+    rc, out = run("voiceprint.py", root, "identify", "--embeddings", e0)
+    check("identify on an empty store returns unknown, exit 0",
+          rc == 0 and "미상" in out and "등록된 목소리 없음" in out, out)
+
+    # 2) enroll from recording 1
+    rc, out = run("voiceprint.py", root, "enroll", "--embeddings", e0,
+                  "--map", '{"0": "정우진"}', "--source", "rec-1")
+    check("enroll writes the store", rc == 0 and "voiceprints.json" in out, out)
+    st = json.loads((root / "_meta" / "voiceprints.json").read_text(encoding="utf-8"))
+    check("store holds one centroid for the person",
+          list(st["people"]) == ["정우진"] and len(st["people"]["정우진"]["centroids"]) == 1,
+          json.dumps(st, ensure_ascii=False)[:300])
+
+    # 3) recognize the same voice in a later recording
+    e1 = vp_emb(root / "e1.json", [("0", A2, 120.0), ("1", B1, 90.0)])
+    labels = root / "labels.json"
+    rc, out = run("voiceprint.py", root, "identify", "--embeddings", e1, "--out", labels)
+    L = json.loads(labels.read_text(encoding="utf-8"))
+    check("known voice auto-identified in a new recording",
+          L["auto"] == {"0": "정우진"}, json.dumps(L, ensure_ascii=False)[:400])
+    check("unenrolled voice is not guessed", L["ask"] == ["1"]
+          and L["decisions"][1]["decision"] == "unknown", json.dumps(L["decisions"][1], ensure_ascii=False))
+    check("scores are reported, not hidden",
+          L["decisions"][0]["score"] > 0.9 and "cos" in L["decisions"][0]["reason"], out)
+
+    # 4) one person cannot be two speakers in one recording
+    e2 = vp_emb(root / "e2.json", [("0", A2, 120.0), ("1", A3, 100.0)])
+    rc, out = run("voiceprint.py", root, "identify", "--embeddings", e2, "--out", labels)
+    L = json.loads(labels.read_text(encoding="utf-8"))
+    check("same person claimed by only one cluster; the loser asks",
+          len(L["auto"]) == 1 and len(L["ask"]) == 1
+          and "다른 클러스터" not in L["decisions"][int(L["ask"][0])]["reason"]
+          and "과다분할" in L["decisions"][int(L["ask"][0])]["reason"],
+          json.dumps(L["decisions"], ensure_ascii=False)[:500])
+
+    # 5) the middle band asks instead of asserting
+    e3 = vp_emb(root / "e3.json", [("0", MAYBE, 60.0), ("1", STRANGER, 60.0)])
+    rc, out = run("voiceprint.py", root, "identify", "--embeddings", e3, "--out", labels)
+    L = json.loads(labels.read_text(encoding="utf-8"))
+    check("plausible-but-unsure → ask with a named candidate",
+          L["decisions"][0]["decision"] == "ask" and L["decisions"][0]["name"] == "정우진",
+          json.dumps(L["decisions"][0], ensure_ascii=False))
+    check("below the floor → unknown, no candidate",
+          L["decisions"][1]["decision"] == "unknown" and L["decisions"][1]["name"] is None,
+          json.dumps(L["decisions"][1], ensure_ascii=False))
+    check("identify warns when a human answer is needed",
+          "WARN" in out and L["auto"] == {}, out)
+
+    # 6) a too-short cluster is never identified or learned
+    e4 = vp_emb(root / "e4.json", [("0", A2, 2.0)])
+    rc, out = run("voiceprint.py", root, "identify", "--embeddings", e4)
+    check("cluster shorter than min-dur is asked, not auto-labeled",
+          rc == 0 and "확인" in out and "발화 2s" in out, out)
+    rc, out = run("voiceprint.py", root, "enroll", "--embeddings", e4, "--map", '{"0": "정우진"}')
+    check("enroll refuses a too-short cluster and says why",
+          rc == 0 and "SKIP" in out and "--force" in out, out)
+
+    # 7) enroll guards against a mislabeled cluster
+    rc, out = run("voiceprint.py", root, "enroll", "--embeddings", e1,
+                  "--map", '{"0": "박도현"}', "--source", "rec-2")
+    check("enroll blocks a cluster that is clearly someone already enrolled",
+          rc == 0 and "SKIP" in out and "정우진" in out, out)
+    rc, out = run("voiceprint.py", root, "enroll", "--embeddings", e1,
+                  "--map", '{"1": "이서연"}', "--source", "rec-2")
+    check("a genuinely new voice enrolls fine", rc == 0 and "SKIP" not in out, out)
+    e_new = vp_emb(root / "e_new.json", [("0", vp_vec((6, 1.0)), 40.0)])
+    rc, out = run("voiceprint.py", root, "enroll", "--embeddings", e_new,
+                  "--map", '{"0": "없는사람"}', "--source", "rec-2")
+    check("enroll warns on a name missing from the registry",
+          "WARN" in out and "speakers.json" in out, out)
+
+    # 8) merging vs. a second centroid (same person, different recording conditions)
+    rc, out = run("voiceprint.py", root, "enroll", "--embeddings", e1,
+                  "--map", '{"0": "정우진"}', "--source", "rec-2")
+    check("re-enrolling the same voice merges instead of duplicating",
+          rc == 0 and "병합" in out, out)
+    st = json.loads((root / "_meta" / "voiceprints.json").read_text(encoding="utf-8"))
+    check("similar enrollment merged into the existing centroid, duration accumulated",
+          len(st["people"]["정우진"]["centroids"]) == 1
+          and st["people"]["정우진"]["centroids"][0]["dur"] > 150, 
+          json.dumps(st["people"]["정우진"], ensure_ascii=False)[:200])
+    e5 = vp_emb(root / "e5.json", [("0", FARSIDE, 200.0)])
+    rc, out = run("voiceprint.py", root, "enroll", "--embeddings", e5,
+                  "--map", '{"Speaker 1": "정우진"}', "--source", "rec-3", "--force")
+    check("'Speaker 1' style keys map to cluster 0", rc == 0 and "SKIP" not in out, out)
+    st = json.loads((root / "_meta" / "voiceprints.json").read_text(encoding="utf-8"))
+    check("a distinctly different recording condition gets its own centroid",
+          len(st["people"]["정우진"]["centroids"]) == 2,
+          json.dumps([c["id"] for c in st["people"]["정우진"]["centroids"]]))
+    rc, out = run("voiceprint.py", root, "identify", "--embeddings", e5, "--out", labels)
+    check("the second centroid recognizes that condition later",
+          json.loads(labels.read_text(encoding="utf-8"))["auto"] == {"0": "정우진"}, out)
+
+    # 9) list + forget
+    rc, out = run("voiceprint.py", root, "list")
+    check("list reports who is enrolled and how much voice was heard",
+          rc == 0 and "정우진" in out and "이서연" in out and "분" in out, out)
+    rc, out = run("voiceprint.py", root, "forget", "--name", "이서연")
+    check("forget dry-runs by default", rc == 0 and "DRY RUN" in out, out)
+    check("forget dry-run did not write",
+          "이서연" in json.loads((root / "_meta" / "voiceprints.json").read_text(encoding="utf-8"))["people"], "")
+    rc, out = run("voiceprint.py", root, "forget", "--name", "이서연", "--apply")
+    st = json.loads((root / "_meta" / "voiceprints.json").read_text(encoding="utf-8"))
+    check("forget --apply removes the voiceprint",
+          rc == 0 and "이서연" not in st["people"] and "정우진" in st["people"], out)
+
+    # 9b) regressions from code review — each of these shipped as a real bug once
+    vp_path = root / "_meta" / "voiceprints.json"
+    write(vp_path, json.dumps({"version": 1, "model": "campplus.onnx", "dim": VP_DIM,
+        "people": {"박도현": {"centroids": [
+            {"id": f"c{i}", "vec": vp_vec((0, 1.0), (i, 0.9)), "dur": 300.0 - i,
+             "n": 2, "sources": ["old"], "updated": "2026-01-01"} for i in range(1, 6)]}}},
+        ensure_ascii=False))
+    e6 = vp_emb(root / "e6.json", [("0", vp_vec((7, 1.0)), 30.0)])   # new condition, short
+    rc, out = run("voiceprint.py", root, "enroll", "--embeddings", e6,
+                  "--map", '{"0": "박도현"}', "--source", "phone-call")
+    st = json.loads(vp_path.read_text(encoding="utf-8"))
+    cs = st["people"]["박도현"]["centroids"]
+    check("a new centroid at the cap evicts an OLD one, never itself",
+          len(cs) == 5 and any(c["sources"] == ["phone-call"] for c in cs)
+          and "c5" not in [c["id"] for c in cs], out + "\n" + str([c["id"] for c in cs]))
+    rc, out = run("voiceprint.py", root, "identify", "--embeddings", e6, "--out", labels)
+    check("the newly learned condition is recognized (it was actually stored)",
+          json.loads(labels.read_text(encoding="utf-8"))["auto"] == {"0": "박도현"}, out)
+
+    wrongdim = vp_emb(root / "e7.json", [("0", [0.6, 0.8], 60.0)])
+    rc, out = run("voiceprint.py", root, "enroll", "--embeddings", wrongdim,
+                  "--map", '{"0": "박도현"}')
+    check("a different embedding model is refused, not truncated into the store",
+          "차원" in out and json.loads(vp_path.read_text(encoding="utf-8"))
+          == st, out)
+    rc, out = run("voiceprint.py", root, "identify", "--embeddings", wrongdim)
+    check("identify refuses a mismatched embedding file too",
+          rc != 0 and "차원" in out, out)
+
+    write(vp_path, json.dumps({"version": 1, "model": "campplus.onnx", "dim": VP_DIM,
+        "people": {"정우진": {"centroids": [{"id": "c1", "vec": vp_vec((0, 1.0)),
+                                             "dur": 300.0, "n": 1, "sources": []}]},
+                   "이서연": {"centroids": [{"id": "c1", "vec": vp_vec((1, 1.0)),
+                                             "dur": 300.0, "n": 1, "sources": []}]}}},
+        ensure_ascii=False))
+    e8 = vp_emb(root / "e8.json", [("0", vp_vec((0, 1.0), (1, 0.1)), 100.0),
+                                   ("1", vp_vec((0, 1.0), (1, 0.9)), 100.0)])
+    rc, out = run("voiceprint.py", root, "identify", "--embeddings", e8, "--out", labels)
+    L = json.loads(labels.read_text(encoding="utf-8"))
+    loser = L["decisions"][1]
+    check("an over-split cluster is offered its BEST candidate, not a worse one",
+          loser["name"] == "정우진" and loser["score"] > loser["runner_up"][1],
+          json.dumps(loser, ensure_ascii=False))
+    check("...and the over-split remedy is stated, since that is the likely cause",
+          "과다분할" in loser["reason"] and "recluster" in loser["reason"],
+          loser["reason"])
+
+    # 10) merge_diar consumes labels.json: auto → real name, rest stays Speaker N
+    write(root / "w.json", json.dumps({"id": "x", "text": "", "segments": [
+        {"start": 0.0, "end": 4.0, "text": "안녕하세요 시작하죠"},
+        {"start": 5.0, "end": 9.0, "text": "네 자료 공유드릴게요"}]}, ensure_ascii=False))
+    write(root / "diar.json", json.dumps([{"start": 0.0, "end": 4.5, "speaker": 0},
+                                          {"start": 4.5, "end": 9.5, "speaker": 1}]))
+    write(root / "lab.json", json.dumps({"auto": {"0": "정우진"}, "ask": ["1"]}, ensure_ascii=False))
+    rc, out = run("merge_diar.py", root / "w.json", root / "diar.json", root / "out.txt",
+                  "--labels", root / "lab.json")
+    txt = (root / "out.txt").read_text(encoding="utf-8")
+    check("merge_diar labels identified clusters and leaves the rest generic",
+          rc == 0 and "정우진: 안녕하세요" in txt and "Speaker 2: 네 자료" in txt, txt)
+    rc, out2 = run("merge_diar.py", root / "w.json", root / "diar.json", root / "out2.txt")
+    check("merge_diar without --labels is unchanged",
+          rc == 0 and "Speaker 1:" in (root / "out2.txt").read_text(encoding="utf-8"), out2)
+    rc, out3 = run("merge_diar.py", root / "w.json", root / "diar.json", root / "out3.txt",
+                   "--label", root / "lab.json")     # typo: singular
+    check("a typo'd flag fails loudly instead of silently dropping every name",
+          rc != 0 and "알 수 없는 옵션" in out3, out3)
+    rc, out4 = run("merge_diar.py", root / "w.json", root / "diar.json", root / "out4.txt",
+                   "--labels")
+    check("--labels without a value fails with a usable message",
+          rc != 0 and "labels.json" in out4, out4)
 
 def main():
     with tempfile.TemporaryDirectory(prefix="mental-ontology-tests-") as td:
@@ -445,6 +663,7 @@ def main():
         test_validate_catches_errors(tmp)
         test_batch_pipeline(tmp)
         test_purge_person(tmp)
+        test_voiceprint(tmp)
         test_migration_v1_to_v2(tmp)
     print(f"\n{'FAIL' if FAILURES else 'PASS'}: {PASS} passed, {len(FAILURES)} failed"
           + (f" — {FAILURES}" if FAILURES else ""))

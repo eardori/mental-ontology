@@ -6,11 +6,30 @@ most (falls back to nearest region), then coalesces consecutive same-speaker
 segments and collapses runaway token repeats. Tolerates transcripts without "end".
 
 Usage:  python3 merge_diar.py <whisper.json> <diar_re.json from recluster.py> <out.txt>
-Output: lines like "[MM:SS - MM:SS] Speaker N: <utterance>" (relabel N→names afterward).
-No third-party deps.
+                             [--labels labels.json from voiceprint.py identify]
+Output: lines like "[MM:SS - MM:SS] Speaker N: <utterance>". With --labels, clusters
+that voiceprint.py identified with `decision: auto` are written as the real name
+instead ("[12:03 - 12:18] 정우진: ..."); everything else stays "Speaker N" for
+Stage 3 to ask about. No third-party deps.
 """
 import sys, json, re
-wj, dj, out = sys.argv[1], sys.argv[2], sys.argv[3]
+argv, names = sys.argv[1:], {}
+if "--labels" in argv:
+    i = argv.index("--labels")
+    if i + 1 >= len(argv):
+        sys.exit("ERROR: --labels 뒤에 labels.json 경로가 필요합니다.")
+    lab = json.load(open(argv[i + 1], encoding="utf-8"))
+    names = {str(k): v for k, v in (lab.get("auto") or {}).items() if v}
+    del argv[i:i + 2]          # so the flag never eats a positional slot
+# A typo'd flag must not degrade into "everything is Speaker N, exit 0" — that looks
+# exactly like a voiceprint step that ran and found nobody.
+bad = [a for a in argv if a.startswith("--")]
+if bad:
+    sys.exit(f"ERROR: 알 수 없는 옵션 {bad} (지원: --labels <labels.json>)")
+if len(argv) < 3:
+    sys.exit("Usage: merge_diar.py <whisper.json> <diar_re.json> <out.txt> "
+             "[--labels labels.json]")
+wj, dj, out = argv[:3]
 wsegs = json.load(open(wj))["segments"]
 for i, w in enumerate(wsegs):  # tolerate transcripts without "end"
     if "end" not in w:
@@ -39,7 +58,9 @@ for w in wsegs:
         blocks[-1][1] = w["end"]; blocks[-1][3] += " " + text
     else:
         blocks.append([w["start"], w["end"], spk, text])
-with open(out, "w") as f:
+with open(out, "w", encoding="utf-8") as f:
     for s, e, spk, text in blocks:
-        f.write(f"[{fmt(s)} - {fmt(e)}] Speaker {spk+1}: {text}\n")
-print(out, len(blocks), "turns")
+        who = names.get(str(spk)) or f"Speaker {spk+1}"
+        f.write(f"[{fmt(s)} - {fmt(e)}] {who}: {text}\n")
+named = sorted({names[str(b[2])] for b in blocks if str(b[2]) in names})
+print(out, len(blocks), "turns" + (f" · 자동 라벨: {', '.join(named)}" if named else ""))

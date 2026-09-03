@@ -44,23 +44,44 @@ Only for recordings with no Plaud transcript.
 3. Long audio takes real time (roughly 5–7× realtime on Apple Silicon). For multiple files, run sequentially in the background and continue other work; warn the user that closing the laptop lid pauses transcription (finished files are skipped on rerun — safe to resume).
 4. Whisper output has **no speaker separation** — note `transcribed_by: whisper` in the frontmatter and still attempt Stage 3 from context clues (self-introductions, names being addressed).
 
-### Stage 2b — Local speaker diarization (optional, for Whisper audio)
+### Stage 2b — Local speaker diarization + voice identity (for Whisper audio)
 
-When Whisper audio has multiple speakers, split them locally with the sherpa-onnx scripts (no cloud). Convert to 16kHz mono first, then diarize → recluster → merge:
+When Whisper audio has multiple speakers, split them locally with the sherpa-onnx scripts
+(no cloud), then ask the **voiceprint store who they are**. Convert to 16kHz mono first:
 
 ```bash
 ffmpeg -i in.mp3 -ac 1 -ar 16000 in.wav
 python3 <skill_dir>/scripts/diarize.py    in.wav diar.json                     # first pass (over-splits)
 python3 <skill_dir>/scripts/recluster.py  in.wav diar.json diar_re.json 0.45   # cosine 0.45; lower = more speakers
-python3 <skill_dir>/scripts/merge_diar.py <whisper.json> diar_re.json labeled.txt   # → "[MM:SS] Speaker N: …"
+python3 <skill_dir>/scripts/voiceprint.py <corpus> embed    --wav in.wav --regions diar_re.json --out emb.json
+python3 <skill_dir>/scripts/voiceprint.py <corpus> identify --embeddings emb.json --out labels.json
+python3 <skill_dir>/scripts/merge_diar.py <whisper.json> diar_re.json labeled.txt --labels labels.json
 ```
 
-Then relabel `Speaker N` → real names in Stage 3. **Setup once**: `pip3 install sherpa-onnx soundfile numpy scikit-learn`, and place the models (`sherpa-onnx-pyannote-segmentation-3-0/model.onnx`, `campplus.onnx`) in a dir pointed to by `DIAR_MODELS` (default `~/.cache/mental-ontology/diar-models`). The recluster pass is not optional: sherpa's raw clustering badly over-segments (e.g. 40 speakers for a 2-person call); threshold 0.45 works well for Korean.
+`labeled.txt` now carries **real names for every voice the corpus already knows** and
+`Speaker N` only for the rest — those are the only ones Stage 3 asks about. After the user
+confirms them, teach the store (Stage 3 rule 0) so the same person is free next time.
+
+**Setup once**: `pip3 install sherpa-onnx soundfile numpy scikit-learn`, and place the models
+(`sherpa-onnx-pyannote-segmentation-3-0/model.onnx`, `campplus.onnx`) in a dir pointed to by
+`DIAR_MODELS` (default `~/.cache/mental-ontology/diar-models`). The recluster pass is not
+optional: sherpa's raw clustering badly over-segments (e.g. 40 speakers for a 2-person call);
+threshold 0.45 works well for Korean. If `identify` reports **화자 과다분할 가능성** (two
+clusters both matching one enrolled person), that threshold is too low for this file — re-run
+`recluster.py` with a higher value (0.5–0.6) rather than answering the question twice.
 
 ## Stage 3 — Speaker attribution (interactive, learning)
 
 Goal: replace "Speaker 1/2" and misattributed labels with real names, learning over time.
 
+0. **Ask the voiceprint store first** (audio path only — Plaud transcripts arrive with labels).
+   `voiceprint.py identify` returns one row per cluster with a cosine score and a decision:
+   `auto` (apply it — no question), `ask` (a named candidate, unsure — make it the default
+   option in the question below), `unknown` (ask from scratch). **Never promote an `ask` to a
+   name yourself**; the score is the whole point of the honesty rule here. A person who has
+   been confirmed once is recognized for free in every later recording — this is what makes
+   frequent casual recording sustainable, so treat enrollment (step 5b) as mandatory, not
+   optional polish.
 1. Load `_meta/speakers.json` — this is the **person registry**, not just an STT map: `[{name, role, org, aliases[], traits, meetings:[dates], tier, first_met_context, intro_by, personal[]}]`. Create if missing.
    - `tier`: `core` (deep mental-model analysis) / `acquaintance` (light dossier) / `contact` (name + meetings only). New confirmed speakers default to `acquaintance`; promote to `core` when the user starts asking about how they think.
    - `first_met_context` ("스타트업얼라이언스 행사에서"), `intro_by` (who introduced them) — capture when the transcript or the user reveals it; this is네트워커의 핵심 자산.
@@ -77,6 +98,14 @@ Goal: replace "Speaker 1/2" and misattributed labels with real names, learning o
    - **Friction budget**: at ingest time, ask at most ONE batched question per sync (the most frequent unknowns). Defer the rest to **Backfill mode** — daily-loop friction is what silently kills data quality (skipped questions → Speaker N debt).
 5. Update `speakers.json` with confirmations (add aliases, meeting dates, refine traits). This makes future runs progressively quieter — that's the point.
    - **Capture the relationship while you have the user's attention**: when confirming a NEW person (≤2 new people this sync — else defer), add ONE compact question to the same AskUserQuestion call: "〈이름〉님과는 어떤 관계인가요?" with options 팀원 / 파트너 / 고객 / 투자자 (+Other for 지인·상사·가족 등) → store as `relationship`. If the transcript already makes it obvious ("우리 CTO가…"), don't ask — record it. For 내부 people, fill `team`/`manager` from context when clear; otherwise leave for the 조직도 flow below.
+   - **5b. Teach the voice** (audio path): right after the user confirms who a cluster was,
+     enroll it so the next recording needs no question —
+     `python3 <skill_dir>/scripts/voiceprint.py <corpus> enroll --embeddings emb.json --map '{"1":"이서연"}' --source <file_id>`
+     (keys are cluster ids, or `"Speaker 2"` style). The script refuses clusters under 5s and
+     clusters that already sound like a **different** enrolled person — that refusal is a
+     mislabel warning, so re-check the answer instead of reaching for `--force`. Voice data is
+     biometric: it stays in `_meta/voiceprints.json` (local), `purge_person.py` deletes it, and
+     `voiceprint.py <corpus> forget --name X --apply` removes one person on request.
    - **Aliases are load-bearing**: `build_db.py` joins transcripts to the ontology through them. Record every raw label a person appears under (한글 이름, 영어 이름, 별명 — e.g. `James(정우진)` ← `정우진`, `James`, `제임스`). `Name(Other)` style names get both halves matched automatically, but anything else must be listed.
 6. If the user says "몰라도 돼 / skip", keep generic labels and move on. Never block the pipeline on attribution.
 7. **Auto-inference before asking** — resolve what context already proves, ask only about the rest:

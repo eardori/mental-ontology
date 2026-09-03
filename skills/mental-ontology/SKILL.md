@@ -25,7 +25,7 @@ summary alone** (details, formats, and guardrails live in the stage files):
 |---|---|---|---|
 | 0 | Setup & config | first run, "설치 확인" | `stages/ingest.md` |
 | 1–2 | Fetch from Plaud · Whisper | "녹음 가져와줘", "동기화" | `stages/ingest.md` |
-| 3 | Speaker attribution (+backfill, 조직도) | auto; "화자 정리해줘", "조직도 입력해줘" | `stages/ingest.md` |
+| 3 | Speaker attribution (+voiceprint, backfill, 조직도) | auto; "화자 정리해줘", "이 목소리 누구야", "조직도 입력해줘" | `stages/ingest.md` |
 | 4–5 | Clean & save · Index & refresh | auto after fetch | `stages/ingest.md` |
 | 6–7 | Ontology analysis · Database (+batch pipeline) | "온톨로지 분석해줘", "회의 N개 반영해줘" | `stages/ontology.md` |
 | 8 | **Query mode** — Q&A over the data | "X는 어떻게 생각해?", "미팅 준비해줘" | `stages/answer.md` |
@@ -83,4 +83,5 @@ Stage details: `stages/ingest.md` (0–5) · `stages/ontology.md` (6–7 + batch
 - `assets/viewer.html` — self-contained viewer
 - `scripts/` — `build_index` · `build_db` · `build_dossiers` · `validate` ·
   `prepare_synthesis` + `merge_ontology` (batch pipeline) · `migrate_objects` (v1→v2) ·
-  `purge_person` (right-to-be-forgotten) · `whisper_transcribe`
+  `purge_person` (right-to-be-forgotten) · `whisper_transcribe` ·
+  `diarize` + `recluster` + `voiceprint` + `merge_diar` (audio → who said what)
