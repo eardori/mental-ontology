@@ -577,8 +577,48 @@ def test_calendar(tmp):
           "식사자리" not in md, md[:400])
     check("a human title that merely starts with a date is not overwritten",
           'title: "2026-05-20 넥스트라 협상 3차"' in md, md[:300])
-    check("an attendee with no display name is skipped, not written as an email",
-          "@partner.io" not in md and "제외됨" in out, out[:800])
+    check("표시 이름 없는 참석자는 이메일 전체가 아니라 아이디로 올라간다",
+          "@partner.io" not in md and "표시 이름이 없어" in out, out[:900])
+
+    # --- 실제 Google Calendar 응답 형태에서 나온 회귀들 (2026-09-04 실사용 테스트) ---
+    real = tmp / "corpus_realshape"
+    build_corpus_v2(real)
+    write(real / "_meta" / "calendar" / "2026-05.json", json.dumps({
+        "fetched": "2026-05-27", "owner_domain": "acme.io", "events": [
+            {"id": "dir1", "title": "acme direction", "start": "2026-05-20T14:00",
+             "end": "2026-05-20T15:00", "location": "ACME-3층-다실 (6인 회의실)",
+             "recurring": True, "attendees": [
+                 {"name": "ACME-3층-다실 (6인 회의실)",
+                  "email": "c_188xyz@resource.calendar.google.com", "resource": True},
+                 {"email": "wj@acme.io"}, {"email": "sy@acme.io"},
+                 {"email": "dh@acme.io", "responseStatus": "declined"}]},
+            {"id": "din1", "title": "정우진 이서연 디너", "start": "2026-05-22T19:00",
+             "end": "2026-05-22T21:00",
+             "description": "https://meet.google.com/abc-defg-hij",
+             "attendees": [{"email": "wj@acme.io"}, {"email": "sy@acme.io"}]}]},
+        ensure_ascii=False))
+    for rel, t in [("2026-05-20_전략회의.md", "14:05"),
+                   ("2026-05-22_외부미팅-넥스트라.md", "19:10")]:
+        f = real / "transcripts" / "2026" / "2026-05" / rel
+        f.write_text(f.read_text(encoding="utf-8").replace(
+            "duration_min: 10", 'duration_min: 60\nstart_time: "%s"' % t, 1)
+            .replace("category: 내부-전략", "category: 기타")
+            .replace("category: 외부-파트너", "category: 기타")
+            .replace("participants: [정우진, 이서연]", "participants: []")
+            .replace("participants: [정우진, Mina]", "participants: []"), encoding="utf-8")
+    run("build_index.py", real)
+    rc, out = run("match_calendar.py", real, "--apply")
+    md20 = (real / "transcripts" / "2026" / "2026-05" / "2026-05-20_전략회의.md").read_text(encoding="utf-8")
+    check("회의실 예약이 참석자로 계수되지 않는다 (내부 회의가 '외부 포함'이 되던 문제)",
+          "내부(2인)" in md20 and "외부" not in md20.split("setting:")[1].split("\n")[0], md20[:400])
+    check("참석을 거절한 사람은 그 자리에 없던 것으로 센다", "내부(2인)" in md20, md20[:400])
+    check("'direction' 의 ir 이 IR 미팅으로 오분류되지 않는다",
+          "외부-투자IR" not in md20 and "내부-" in md20, md20[:400])
+    check("표시 이름 없는 참석자는 버리지 않고 이메일 아이디로 올린다",
+          "wj" in md20 and "표시 이름이 없어" in out, out[:900])
+    md22 = (real / "transcripts" / "2026" / "2026-05" / "2026-05-22_외부미팅-넥스트라.md").read_text(encoding="utf-8")
+    check("자동으로 붙는 화상 링크가 '식사자리' 판정을 가리지 않는다",
+          "식사자리" in md22 and "화상" not in md22, md22[:400])
 
     tz = tmp / "corpus_tz"
     build_corpus_v2(tz)

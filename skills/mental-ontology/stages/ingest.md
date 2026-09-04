@@ -46,6 +46,18 @@ Stage 3 화자 추정의 정답지**다.
    캐시로 두는 이유: 재실행이 같은 결과를 내야 하고(매칭은 결정적이어야 한다), 매번
    캘린더를 다시 읽지 않기 위해서다. **캘린더 원문을 코퍼스 밖으로 내보내지 않는다.**
    description은 회의 링크·아젠다만 남기고 길면 잘라서 저장한다(민감 정보 유입 방지).
+
+   **Google Calendar 응답 → 캐시 변환 (필드 이름이 다르다. 실측 기준):**
+
+   | 캐시 | Google 응답 | 주의 |
+   |---|---|---|
+   | `title` | `summary` | |
+   | `start` / `end` | `start.dateTime` / `end.dateTime` | `+09:00` 오프셋이 붙어서 온다 — 그대로 넣으면 된다(스크립트가 로컬로 변환). **종일 일정은 `date`만 오는데, 그런 이벤트는 캐시에 넣지 말 것** (연차·휴가가 그날 모든 녹음을 삼킨다) |
+   | `recurring` | `bool(recurringEventId)` | 정기 여부 플래그는 따로 없다 |
+   | `description` | `conferenceUrl` 또는 `description` | Meet 링크는 여기에 |
+   | `attendees[].name` / `.email` | `attendees[].displayName` / `.email` | **표시 이름이 없는 참석자가 대부분이다** — 이메일을 그대로 두면 스크립트가 아이디(`sebs.park`)를 후보로 올리고 Stage 3가 실제 이름으로 확정한다 |
+   | `attendees[].resource` | `attendees[].resource` | **회의실·장비 예약이 참석자로 들어온다.** 이 플래그와 `@resource.calendar.google.com` 도메인을 그대로 넘겨야 스크립트가 걸러낸다 |
+   | `attendees[].responseStatus` | 그대로 | `declined` 는 그 자리에 없던 사람으로 계산된다 |
 4. 매칭은 **Stage 5에서** 돈다 — `build_index.py`가 만든 `_index/catalog.json`을 읽기
    때문에 그 전에 실행하면 새 녹음을 못 찾는다. Stage 5의 명령 블록을 그대로 따를 것:
    ```bash

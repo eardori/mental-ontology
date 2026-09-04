@@ -13,12 +13,16 @@ Plaud는 녹음이 '언제 몇 분'인지만 안다. 캘린더는 그 시간에 
 `_meta/calendar/<YYYY-MM>.json`에 캐시하고, 이 스크립트는 그 캐시로 **결정적으로**
 매칭한다. 그래야 재실행이 같은 답을 내고 테스트할 수 있다.
 
-캐시 형식 (스킬이 씀):
+캐시 형식 (스킬이 씀 — Google 응답과 필드 이름이 다르다, stages/ingest.md 1b의 매핑표 참조):
   {"fetched": "YYYY-MM-DD", "range": ["YYYY-MM-DD", "YYYY-MM-DD"],
-   "owner_domain": "onda.me",
-   "events": [{"id", "title", "start": "YYYY-MM-DDTHH:MM", "end": "...",
+   "owner_domain": "example.com",
+   "events": [{"id", "title", "start": "YYYY-MM-DDTHH:MM(+09:00 가능)", "end": "...",
                "location": "", "description": "", "recurring": false,
-               "attendees": [{"name": "", "email": "", "self": false}]}]}
+               "attendees": [{"name": "", "email": "", "self": false,
+                              "resource": false, "responseStatus": "accepted"}]}]}
+실측에서 나온 것들: 회의실 예약이 attendees에 resource:true 로 들어오고(사람으로 세면 인원이
+부풀고 도메인 때문에 내부 회의가 '외부 포함'이 된다), 표시 이름 없는 참석자가 대부분이며,
+저녁 식사 자리에도 Meet 링크가 자동으로 붙는다(화상보다 식사자리를 먼저 본다).
 
 Usage:
   python3 match_calendar.py <corpus>                    # 매칭 리포트 (기본: 미적용)
@@ -47,6 +51,9 @@ MEAL_WORDS = ("식당", "식사", "점심", "회식", "런치", "디너", "브�
               "술자리", "술집", "맥주", "소주", "와인", "반주", "만찬")
 MEAL_LATIN = r'\b(lunch|dinner|brunch|cafe|coffee|restaurant|bar|drinks)\b'
 VIDEO_WORDS = ("zoom", "meet.google", "teams", "webex", "hangout", "화상", "온라인", "구글밋")
+# 회의실·장비 예약은 캘린더에서 '참석자'로 들어온다(resource:true, @resource.calendar.google.com).
+# 사람으로 세면 인원이 부풀고, 그 도메인이 외부로 잡혀 내부 회의가 '외부 포함'이 된다.
+RESOURCE_DOMAINS = ("resource.calendar.google.com", "group.calendar.google.com")
 OFFICE_WORDS = ("회의실", "사무실", "office", "본사", "room", "미팅룸")
 
 
@@ -106,6 +113,21 @@ def load_events(corpus):
     return out
 
 
+def people_attendees(ev):
+    """사람인 참석자만. 회의실/장비 예약과 참석을 거절한 사람은 제외한다."""
+    out = []
+    for a in ev.get("attendees", []) or []:
+        if a.get("resource"):
+            continue
+        email = (a.get("email") or "").lower()
+        if any(email.endswith("@" + d) for d in RESOURCE_DOMAINS):
+            continue
+        if a.get("responseStatus") == "declined":
+            continue          # 거절한 사람은 그 자리에 없었다
+        out.append(a)
+    return out
+
+
 def describe_setting(ev):
     """TPO — 셀 수 있는 것만으로 자리의 성격을 적는다 (추론 아님, 캘린더에 적힌 것)."""
     st, en = ev["_start"], ev["_end"]
@@ -114,10 +136,12 @@ def describe_setting(ev):
             "오후" if h < 17 else "저녁" if h < 21 else "야간")
     dow = "월화수목금토일"[st.weekday()]
     blob = f"{ev.get('location','')} {ev.get('title','')} {ev.get('description','')}".lower()
-    if any(w in blob for w in VIDEO_WORDS):
-        where = "화상"
-    elif any(w in blob for w in MEAL_WORDS) or re.search(MEAL_LATIN, blob):
+    # 순서 주의: 화상 링크(Meet 등)는 캘린더가 자동으로 붙이는 경우가 많아 약한 신호다.
+    # 저녁 식사 자리에도 Meet 링크가 달려 있어서, 화상을 먼저 보면 '식사자리'가 가려진다.
+    if any(w in blob for w in MEAL_WORDS) or re.search(MEAL_LATIN, blob):
         where = "식사자리"
+    elif any(w in blob for w in VIDEO_WORDS):
+        where = "화상"
     elif any(w in blob for w in OFFICE_WORDS):
         where = "사무실"
     elif ev.get("location"):
@@ -126,7 +150,7 @@ def describe_setting(ev):
         where = ""
     dom = (ev.get("_domain") or "").lower()
     ext_domains, n_att, n_email = set(), 0, 0
-    for a in ev.get("attendees", []) or []:
+    for a in people_attendees(ev):
         email = (a.get("email") or "").lower()
         n_att += 1
         d = email.split("@")[-1] if "@" in email else ""
@@ -161,9 +185,10 @@ def suggest_category(ev, setting, ext_domains, n_att):
     if ext_domains:
         if "식사자리" in setting:
             return "외부-파트너"
-        if re.search(r'IR|투자|심사|벤처|캐피탈|파트너스', title, re.I):
+        # 'IR' 은 대소문자 구분해서만 본다 — re.I 로 두면 d(ir)ection·h(ir)ing·f(ir)st 가 전부 IR이 된다
+        if re.search(r'\bIR\b', title) or re.search(r'투자|심사|벤처|캐피탈|파트너스', title):
             return "외부-투자IR"
-        if re.search(r'데모|제안|영업|도입|견적', title, re.I):
+        if re.search(r'데모|제안|영업|도입|견적', title):
             return "외부-고객영업"
         return "외부-파트너"
     if n_att:
@@ -276,11 +301,21 @@ def main():
             continue
         setting, ext, n_att = describe_setting(ev)
         cat = suggest_category(ev, setting, ext, n_att)
-        # 표시 이름이 없는 참석자는 건너뛴다 — 이메일을 이름으로 넣으면
-        # person_meetings와 도시에가 'mina@nextra.co.kr' 이름으로 생긴다.
-        att = [x.get("name", "").strip() for x in (ev.get("attendees") or [])]
-        n_noname = sum(1 for x in (ev.get("attendees") or []) if not x.get("name"))
-        att = [x for x in att if x]
+        # 실제 캘린더에는 표시 이름 없이 이메일만 있는 참석자가 대부분이다. 이메일을 그대로
+        # 이름으로 쓰면 도시에가 'sebs.park@onda.me' 로 생기고, 버리면 "참석자=화자 정답지"가
+        # 무너진다. 그래서 로컬파트를 후보로 올리되(sebs.park), 확정은 Stage 3에 맡긴다.
+        ppl = people_attendees(ev)
+        att, n_guessed = [], 0
+        for x in ppl:
+            nm = (x.get("name") or "").strip()
+            if not nm:
+                local = (x.get("email") or "").split("@")[0]
+                if not local:
+                    continue
+                nm = local
+                n_guessed += 1
+            att.append(nm)
+        n_noname = n_guessed
         confident = score >= a.min_overlap
         n_ok += confident
         n_ask += not confident
@@ -304,7 +339,8 @@ def main():
         elif cat and r.get("category") != cat:
             notes.append(f"분류 유지: '{r.get('category')}' (일정 기준 제안 '{cat}')")
         if n_noname:
-            notes.append(f"표시 이름 없는 참석자 {n_noname}명은 제외됨 (이메일은 이름이 아니다)")
+            notes.append(f"참석자 {n_noname}명은 표시 이름이 없어 이메일 아이디로 넣었습니다 — "
+                         "Stage 3에서 실제 이름으로 확정하세요")
         for n in notes:
             print(f"       ! {n}")
         if confident:
