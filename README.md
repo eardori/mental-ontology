@@ -80,9 +80,18 @@ claude plugin install mental-ontology@eardori
 
 업데이트는 `claude plugin update mental-ontology@eardori`.
 
-녹음기(Plaud) 연동·로컬 전사(Whisper)·캘린더까지 한 번에 붙이려면 Claude Code에게
-**"INSTALL.md 따라 설치해줘"** 라고 말하세요 — 선택 항목까지 순서대로 안내합니다.
-(요구사항: [Claude Code](https://claude.com/claude-code) · Python 3 · 선택: Node 20+와 [Plaud](https://www.plaud.ai) 계정)
+설치 후 **Claude Code를 재시작**하세요(플러그인은 세션 시작 때 로드됩니다).
+
+**Claude Code가 처음이거나, Plaud·캘린더까지 붙이려면** → **[INSTALL.md](./INSTALL.md)**
+(Claude Code 설치부터 Plaud 로그인·캘린더 커넥터·문제 해결까지 순서대로). Claude Code에게
+**"INSTALL.md 따라 설치해줘"** 라고 시켜도 됩니다.
+
+| 필요한 것 | |
+| --- | --- |
+| **Claude 구독** (Pro/Max/Team 등) + [Claude Code](https://claude.com/claude-code) | 필수 |
+| **Python 3** | 필수 (macOS 기본 포함) |
+| [Plaud](https://www.plaud.ai) 계정 + **Node 20+** | 녹음 자동 수집용 (없으면 오디오 파일 직접 투입) |
+| 캘린더 커넥터 | 선택 — 붙이면 화자 질문이 크게 줄고 자리의 성격(TPO)이 근거에 반영됩니다 |
 
 ## 🏁 3분 퀵스타트 / Quickstart
 
