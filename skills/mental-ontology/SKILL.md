@@ -1,19 +1,21 @@
 ---
 name: mental-ontology
 description: >
-  End-to-end pipeline from Plaud voice recordings to a queryable mental-model ontology:
-  fetch transcripts via Plaud MCP (or transcribe raw audio locally with Whisper),
-  attribute speakers interactively with a learning speaker-profile, clean and save
-  meeting markdown into a corpus with an index, extract people's mental models
-  (beliefs, decision frames, tensions) into an ontology with an HTML viewer and report,
-  build a SQLite database over everything, then answer questions and run business-ideation
-  / strategy workflows grounded in the data.
+  End-to-end pipeline from voice recordings to a queryable map of how the people around you
+  think, what they wanted in each conversation, and what you owe them: fetch transcripts via
+  Plaud MCP (or transcribe raw audio locally with Whisper + local diarization), identify
+  speakers by voiceprint and calendar attendee lists, clean and save meeting markdown into a
+  corpus, extract mental models (beliefs, decision frames, tensions, traps) and readings
+  (per-conversation intent) into an ontology with an HTML viewer, person dossiers and a
+  SQLite database, PUSH a briefing of what the user missed after every sync, and answer
+  questions or run strategy workflows grounded in the data.
   Use when the user says things like: "회의 녹음 가져와서 정리해줘", "Plaud 녹음 분석해줘",
   "멘탈모델 온톨로지 만들어줘", "새 미팅 코퍼스에 추가해줘", "온톨로지에 물어봐줘",
   "X는 어떻게 생각해?", "이 사람에게 맡겨도 될까", "미팅 준비해줘", "회의 데이터로 사업 아이디어",
-  "저 사람이 원한 게 뭐야", "내가 놓친 거 있어", "이 목소리 누구야",
-  "내일 일정 브리핑해줘", "캘린더랑 연결해줘",
+  "저 사람이 원한 게 뭐야", "내가 놓친 거 있어", "이 목소리 누구야", "이번 주 정리해줘",
+  "내일 일정 브리핑해줘", "캘린더랑 연결해줘", "화자 정리해줘", "조직도 입력해줘",
   "전략 짜줘", "process my Plaud recordings", "build a mental model ontology",
+  "what did I miss in that meeting", "brief me before I meet X",
   "query the ontology", "find opportunities in my meetings", "strategy from my meeting data".
 ---
 

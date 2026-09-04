@@ -1,29 +1,74 @@
 # Mental Ontology 🧠
 
-> **회의 녹음만 넣으면, 참석자들의 사고방식(멘탈모델)을 인물·관계·시간축의 지도로 만들고 — 그 데이터에 질문을 던지고, 사업과 전략까지 뽑아내는 도구.**
+> **녹음만 계속 쌓으면, 내가 놓친 사람들의 생각·의도·약속을 대신 기억하고 먼저 말해주는 도구.**
 >
-> **Turn meeting recordings into a living map of how people think — then query it, and turn it into business ideas and strategy.**
+> **Keep recording. It remembers what you missed about the people you talked to — and tells you before you need it.**
 
-사람마다 세상을 보는 **프레임(멘탈모델)** 이 있습니다. 회의 녹취를 이 도구에 넣으면 각자의 사고방식을 **객체와 관계의 그래프**로 뽑아냅니다. 그리고 그 데이터는 화면으로 보는 데서 끝나지 않습니다 — **DB로 쌓이고, 질문에 답하고, 전략의 재료가 됩니다.**
+[![tests](https://img.shields.io/badge/tests-183%20passing-brightgreen)](./tests/run_tests.py)
+[![version](https://img.shields.io/badge/version-2.0.0-blue)](./CHANGELOG.md)
+[![license](https://img.shields.io/badge/license-MIT-lightgrey)](./LICENSE)
 
-리더가 얻는 것: _누구에게 어떤 일을 어떻게 맡길지 · 파트너/투자자와 어떻게 소통할지 · 다음 베팅을 어디에 걸지._
+## 30초 요약 / What this is
+
+**이건 앱이 아니라 [Claude Code](https://claude.com/claude-code) 스킬 하나입니다.**
+`skills/mental-ontology/`를 `~/.claude/skills/`에 복사하면, Claude Code에게 한국어(또는 영어)로
+말하는 것만으로 아래가 돌아갑니다. 서버도, 계정도, 외부 전송도 없습니다 — **전부 내 컴퓨터 안**.
+
+```
+🎙 녹음(Plaud/오디오) → 전사 → 화자 식별(목소리 지문·캘린더) → 회의록 코퍼스(마크다운)
+                                                      ↓
+                                    온톨로지 = 사람들의 사고·의도·관계 지도
+                                                      ↓
+        🔔 먼저 말해주기        ❓ 물어보기            📊 보기            🧭 전략 뽑기
+        (놓친 것 브리핑)      (SQLite + 전문검색)   (HTML 뷰어·도시에)   (워크플로우 5종)
+```
+
+**핵심 설계 원칙 세 가지** — 이 리포를 복사해 쓰신다면 이것만은 알고 쓰세요:
+
+1. **지어내지 않습니다.** 근거 등급이 계산으로 정해지고(반복 관찰이 `high`를 *획득*),
+   인용문은 실제 발화에 접지 검증되며, 의도 추정은 **적중률을 공개**합니다.
+   틀린 걸 숨기는 순간 이런 도구는 쓸모가 없어집니다.
+2. **로컬 우선.** 코퍼스·DB·목소리 지문·캘린더 캐시 전부 내 폴더에만. 외부 전송 없음.
+3. **사적인 판단 보조 도구입니다.** 남을 평가하는 리포트가 아니라, 내가 놓친 걸 나만 보는 것.
+   ("분석당한다"는 인상을 주지 않기 — 방법론 원안자의 조언)
+
+버전별 변화는 [CHANGELOG.md](./CHANGELOG.md)에 있습니다. 지금은 **v2.0** —
+"묻는 도구"에서 **"먼저 말해주는 도구"** 로 넘어온 버전입니다.
 
 ---
 
 ## 🎁 이 리포에 든 것 / What's inside
 
-| 파일                            | 용도                                                                                                                                                                                                                                                                                                                              |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `skills/mental-ontology/`       | **Claude Code 스킬** — 파이프라인 전체(수집→전사→화자→코퍼스→온톨로지→DB→질문→전략)                                                                                                                                                                                                                                               |
-| `INSTALL.md`                    | Claude가 직접 실행하는 설치 가이드 (한 줄 요청으로 설치)                                                                                                                                                                                                                                                                          |
-| `skills/.../assets/PLAYBOOK.md` | **질문·전략 워크북** — SQL 레시피 + 사업구상/전략 워크플로우 5종                                                                                                                                                                                                                                                                  |
-| `skills/.../assets/viewer.html` | 시각화 뷰어 — `objects.json` 더블클릭/드래그로 열림 (서버·인터넷 불필요). **인물 포커스**(구조+관계 SVG 맵+충돌축+함정+사고진화+위임/설득 브리핑) · **팀 정렬 히트맵**(테마×인물) · **충돌 축 긴장 지도** · **모델 계보 타임라인** · **메타패턴** · 섹션 접기/펼치기                                                              |
-| `skills/.../scripts/`           | `build_db.py`(SQLite DB + 화자 별칭 조인 + 접촉 기록) · `build_dossiers.py`(인물 도시에) · `validate.py`(무결성·정직성·인용 접지 검증) · `prepare_synthesis.py`+`merge_ontology.py`(배치 재추출 파이프라인) · `voiceprint.py`(목소리로 인물 자동 식별 — 한 번 확인하면 다음부터 자동) · `purge_person.py`(인물 일괄 삭제/익명화) · `consolidate.py`(신뢰도 재보정·중복 탐지·위생) · `build_meta.py`(메타패턴 생성) · `build_index.py` · `whisper_transcribe.py` · `migrate_objects.py`(v1→v2) |
-| `examples/sample-objects.json`  | 완성 예시(가상 Acme) — 뷰어로 바로 열어 결과 형태 확인                                                                                                                                                                                                                                                                            |
-| `skills/.../scripts/build_briefing.py` | **놓친 것 브리핑** — 회의 직후 / 만나기 전 / 주간 다이제스트 (전부 DB에서 계산) |
-| `tests/run_tests.py`            | 자체 테스트 스위트 — 가상 데이터로 파이프라인 전체 검증 (`python3 tests/run_tests.py`)                                                                                                                                                                                                                                            |
+| 파일 | 용도 |
+| --- | --- |
+| `skills/mental-ontology/SKILL.md` | **스킬 라우터** — 요청을 스테이지로 보내고, 항상 지켜야 할 규칙(정직성·프라이버시·토큰 이코노미)을 건다 |
+| `skills/.../stages/` | 스테이지 상세 — `ingest.md`(수집·전사·화자·저장) · `ontology.md`(추출·DB·배치) · `answer.md`(질문·전략) |
+| `skills/.../assets/EXTRACTION.md` | **추출 스펙** — 멘탈모델의 정의, holder/about 귀속, 근거 등급, 대화 의도(readings) 규칙, 자리(TPO)별 보정 |
+| `skills/.../assets/PLAYBOOK.md` | **질문·전략 워크북** — SQL 레시피 + 전략 워크플로우 5종 |
+| `skills/.../assets/viewer.html` | 자립형 뷰어 — 더블클릭으로 열림(서버·인터넷 불필요). 인물 포커스 · 팀 정렬 히트맵 · 충돌 축 지도 · 모델 계보 · 대화 의도 |
+| `skills/.../assets/schema.json` | `objects.json`의 JSON Schema (v4) |
+| `INSTALL.md` / `CHANGELOG.md` / `CLAUDE.md` | 설치 가이드 / 버전별 변화 / 이 리포에서 작업하는 에이전트용 안내 |
+| `examples/sample-objects.json` | 완성 예시(가상 Acme) — 뷰어로 바로 열어 결과 형태 확인 |
+| `tests/run_tests.py` | 자체 테스트 스위트 183개 — 가상 데이터로 전 파이프라인 검증 (`python3 tests/run_tests.py`) |
 
----
+**스크립트** (`skills/mental-ontology/scripts/` · 전부 python3 표준 라이브러리만, 음성 계열만 예외)
+
+| 스크립트 | 하는 일 |
+| --- | --- |
+| `build_index.py` | 회의록 스캔 → `_index/catalog.json` + INDEX.md |
+| `build_db.py` | SQLite DB(전문검색·화자 별칭 조인·접촉 기록·약속·대화 의도) |
+| `build_dossiers.py` | 인물 도시에 `people/<이름>.md` (수기 메모는 재생성해도 보존) |
+| **`build_briefing.py`** | **놓친 것 브리핑** — 회의 직후 / 만나기 전 / 내일 일정 / 주간 |
+| **`voiceprint.py`** | **목소리 지문** — 한 번 확인한 사람은 다음 녹음부터 자동 식별 |
+| **`match_calendar.py`** | **캘린더 매칭** — 참석자 정답지 + 그 자리의 성격(TPO) |
+| `validate.py` | 무결성·정직성·인용 접지·적중률 검증 (Stage 6 후 필수) |
+| `consolidate.py` | 온톨로지 위생 — 근거 재보정·중복 탐지·stale 플래그 |
+| `build_meta.py` | 여러 모델이 공유하는 메타패턴(테마) |
+| `prepare_synthesis.py` + `merge_ontology.py` | 대량 소급 처리(배치 재추출) 파이프라인 |
+| `whisper_transcribe.py` | 미전사 오디오 로컬 전사(mlx-whisper / openai-whisper) |
+| `diarize.py` + `recluster.py` + `merge_diar.py` | 로컬 화자 분리(sherpa-onnx) → 목소리 지문으로 이름 붙이기 |
+| `purge_person.py` | 인물 일괄 삭제/익명화 — 목소리 지문·대화 의도까지 (되돌릴 백업 포함) |
+| `migrate_objects.py` | 레거시 v1 → v2 마이그레이션 |
 
 ## 🚀 설치 (2분) / Install
 
@@ -40,11 +85,12 @@ Claude가 스킬 복사 → Plaud MCP 등록까지 자동 수행. 재시작 후 
 
 설치 후 Claude Code에서 순서대로 말해보세요:
 
-1. **"최근 Plaud 녹음 가져와서 정리해줘"** — 녹음을 가져와 화자를 확인하며 회의록 코퍼스를 만듭니다. (첫 실행 시 코퍼스 저장 위치를 물어봅니다 — Obsidian 볼트 추천)
-2. **"온톨로지 분석해줘"** — 멘탈모델 지도 + 뷰어 + 리포트가 생성됩니다.
-3. **"X는 어떻게 생각하는 사람이야?"** — 이제 데이터에 질문을 던지세요. 이게 이 도구의 진짜 시작입니다.
+1. **"최근 Plaud 녹음 가져와서 정리해줘"** — 녹음을 가져와 화자를 확인하며 회의록 코퍼스를 만들고, **정리가 끝나면 '놓친 것 브리핑'이 바로 나옵니다.** (첫 실행 시 코퍼스 위치를 물어봅니다 — Obsidian 볼트 추천)
+2. **"온톨로지 분석해줘"** — 사고방식·의도·관계 지도 + 뷰어 + 인물 도시에가 생성됩니다.
+3. **"X는 어떻게 생각하는 사람이야?"** / **"내일 ○○ 만나"** — 이제 데이터가 답하고, 먼저 말합니다.
 
-> 💡 **여러 회의를 넣을수록** 사람들의 사고가 어떻게 바뀌었는지 **시간축 변화**까지 쌓입니다.
+> 💡 **쓸수록 조용해집니다.** 목소리 지문·화자 별칭·캘린더가 쌓이면 질문이 줄고,
+> 회의가 쌓이면 사람들의 생각이 어떻게 **변했는지**까지 보입니다.
 
 ---
 
@@ -166,6 +212,13 @@ Claude가 스킬 복사 → Plaud MCP 등록까지 자동 수행. 재시작 후 
 - **영어 회의도 되나요?** — 됩니다. 전사 언어 옵션(`--lang en`)과 온톨로지 추출 모두 다국어.
 - **DB는 뭘로 보나요?** — 그냥 Claude에게 물으면 됩니다. 직접 보려면 `sqlite3 ontology.db` 또는 아무 SQLite 뷰어.
 - **팀원과 공유해도 되나요?** — 데이터는 민감합니다. 공유 전 반드시 내용 검토를 — 기본은 본인 전용.
+- **포크해서 고쳐 쓰고 싶어요.** — [CLAUDE.md](./CLAUDE.md)부터 읽으세요(구조·명령·파생 체인·함정).
+  스크립트는 표준 라이브러리만 쓰고 `python3 tests/run_tests.py` 하나로 전부 검증됩니다.
+  기억할 것 하나: **`objects.json`이 원본이고 뷰어·DB·도시에는 파생물**이라, 편집 후에는
+  파생 체인을 순서대로 다시 돌려야 합니다(`stages/ontology.md`에 명시).
+- **왜 이렇게 "모른다"고 자주 말하나요?** — 의도적입니다. 이 도구의 유일한 자산은 신뢰이고,
+  한 번 지어내면 나머지 전부를 의심하게 됩니다. 확신 없는 것은 추정이라 적고, 의도 추정은
+  적중률까지 공개합니다.
 
 ## 크레딧 / Credits
 

@@ -496,9 +496,13 @@ def brief_upcoming(db, corpus, when, me, registry):
                 # 이름 표기가 다를 뿐인 경우가 흔하다(캘린더 'Mina Kim' ↔ 코퍼스 'Mina').
                 # 단정하지 않고 후보만 제시한다 — 별칭은 사람이 확정해야 하는 조인 키다.
                 base = re.sub(r'[^\w가-힣]', '', raw).lower()
-                cand = [n for n in {e.get("name") for e in registry if e.get("name")}
-                        if n and (base in re.sub(r'[^\w가-힣]', '', n).lower()
-                                  or re.sub(r'[^\w가-힣]', '', n).lower() in base)]
+                # 빈 문자열은 모든 이름에 포함되므로 아무나 후보가 된다. 후보는
+                # 결정적으로 정렬한다 — set 순회 순서는 실행마다 달라진다.
+                cand = sorted(
+                    (n for n in {e.get("name") for e in registry if e.get("name")}
+                     if base and n and (base in re.sub(r'[^\w가-힣]', '', n).lower()
+                                        or re.sub(r'[^\w가-힣]', '', n).lower() in base)),
+                    key=lambda n: (len(n), n))
                 hint = (f" · 혹시 **{cand[0]}**? 맞으면 speakers.json의 aliases에 "
                         f"'{raw}' 를 추가하세요" if cand else "")
                 L.append(f"- **{raw}** — 코퍼스에 기록 없음 (첫 만남이거나 이름 표기 차이){hint}")
@@ -506,7 +510,7 @@ def brief_upcoming(db, corpus, when, me, registry):
             owed = [c for c in commitments_for(db, person=n, only_open=True)
                     if me and c[1] == me]
             reads = open_readings(db, who=n)
-            gap = days_between(newest_date(db), mt[0])
+            gap = days_between(when, mt[0])   # 브리핑 대상 날짜 기준 (마지막 동기화가 아니라)
             bits = [f"마지막 `{mt[0]}`" + (f" ({gap}일 전)" if gap else ""), f"총 {mt[1]}회"]
             if owed:
                 bits.append(f"⚡**내가 안 한 것 {len(owed)}건**")

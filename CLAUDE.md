@@ -20,7 +20,10 @@ Two consequences that shape every change here:
    Obsidian vault. It is private and must never land in this repo. All examples and tests use
    the fictional "Acme" cast (정우진 / 이서연 / 박도현 …); keep it that way.
 
-Changes reach a user only after they re-copy the skill directory — there is no update channel.
+Changes reach a user only after they re-copy the skill directory — there is no update channel
+(`INSTALL.md` documents the upgrade path). User-visible changes belong in `CHANGELOG.md`:
+the repo versions itself there (currently 2.0.0), and a reader landing on the repo uses it
+plus the README's "30초 요약" to understand what this is.
 
 ## Commands
 

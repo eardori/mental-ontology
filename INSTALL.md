@@ -55,6 +55,17 @@ New MCP tools load only after a session restart. Tell the user:
 2. 재시작 후 **"Plaud 로그인해줘" / "Log me into Plaud"** 라고 말하면 브라우저 인증이 열림 —
    **Authorize는 사용자가 직접 클릭** (Claude는 자격증명을 다루지 않는다).
 
+### 4b. (Optional) Calendar MCP / 캘린더 연동 (선택, 강력 추천)
+
+캘린더를 붙이면 **참석자 명단이 화자 추정의 정답지**가 되고, 그 자리의 성격(TPO)이
+근거 등급 판단에 들어간다. 사용자의 캘린더 MCP(예: Google Calendar 커넥터)가 이미
+붙어 있으면 스킬이 알아서 쓴다 — 없으면 이 단계는 건너뛴다(캘린더는 선택이며,
+없다고 파이프라인이 막히지 않는다).
+
+첫 사용 시 스킬이 한 번만 묻는다: 어떤 캘린더인지, 그리고 **내 이메일 도메인**
+(내부/외부 참석자를 가르는 기준). 답은 `~/.mental-ontology.json`에 저장된다.
+일정은 `<corpus>/_meta/calendar/`에 로컬 캐시로만 저장된다.
+
 ### 5. (Optional) Whisper for raw audio / 미전사 녹음용 Whisper (선택)
 
 Plaud가 전사하지 못한 원본 오디오를 로컬 전사하려면 (Apple Silicon Mac 권장):
@@ -69,6 +80,22 @@ brew install ffmpeg   # macOS  /  apt install ffmpeg  # Linux
 ```
 
 지금 설치하지 않아도 된다 — 필요해지면 스킬이 안내한다. / Can be deferred; the skill will prompt when needed.
+
+### 5b. (Optional) 화자 분리 + 목소리 지문 / Diarization + voiceprints (선택)
+
+여러 사람이 나오는 **오디오 파일**을 자주 넣는다면(식사·통화·잡담 녹음), 로컬 화자 분리와
+목소리 지문을 켜두는 게 좋다 — 한 번 확인한 사람은 이후 녹음에서 자동으로 이름이 붙는다.
+
+```bash
+pip3 install sherpa-onnx soundfile numpy scikit-learn
+# 모델 2개를 아래 디렉터리에 배치 (env DIAR_MODELS 로 위치 변경 가능):
+#   ~/.cache/mental-ontology/diar-models/sherpa-onnx-pyannote-segmentation-3-0/model.onnx
+#   ~/.cache/mental-ontology/diar-models/campplus.onnx
+```
+
+Plaud처럼 화자 라벨이 이미 붙어 오는 소스만 쓴다면 필요 없다.
+목소리 데이터는 생체정보라 `<corpus>/_meta/voiceprints.json`에만 저장되고,
+`purge_person.py` 또는 `voiceprint.py <corpus> forget --name X --apply`로 지운다.
 
 ### 6. Verify / 검증
 
@@ -101,4 +128,20 @@ rm -rf ~/.claude/skills/mental-ontology
 claude mcp remove plaud -s user
 rm ~/.mental-ontology.json          # config (선택)
 # corpus 폴더는 사용자 데이터 — 직접 판단해 보관/삭제
+#   (특히 _meta/voiceprints.json 은 생체정보, _meta/calendar/ 는 일정 캐시)
 ```
+
+## Upgrade / 업그레이드
+
+스킬은 복사본이라 리포를 당겨받은 뒤 다시 복사해야 반영된다:
+
+```bash
+git -C <repo> pull
+rm -rf ~/.claude/skills/mental-ontology
+cp -R <repo>/skills/mental-ontology ~/.claude/skills/mental-ontology
+python3 <repo>/tests/run_tests.py     # PASS 확인
+```
+
+**업그레이드 후 기존 코퍼스에서 한 번은 반드시**: `build_index.py` → `build_db.py` →
+`build_dossiers.py`. DB는 파생물이라 새 스키마(예: v2.0의 대화 의도·TPO 컬럼)를 담으려면
+다시 만들어야 한다. 변경 내역은 [CHANGELOG.md](./CHANGELOG.md).

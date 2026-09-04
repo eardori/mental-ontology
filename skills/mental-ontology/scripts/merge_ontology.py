@@ -167,19 +167,45 @@ def main():
     # readings (대화 의도): pooled per-meeting, deduped by id. Resolutions supplied by the
     # extraction agents (status 확인됨/빗나감 for an EXISTING id) update in place — that
     # re-check is what keeps the hit rate honest.
-    by_id, orphan_reads = {r.get("id"): r for r in base.get("readings", [])}, []
+    by_id, orphan_reads, unmapped_reads = {r.get("id"): r for r in base.get("readings", [])}, [], []
     # readings[].meeting must be a meetings[].id; the pool carries the transcript's
     # source_id, so translate — otherwise the briefing falls back to date matching and
     # two meetings on one day get mixed.
     sid2mid = {m.get("source_id"): m.get("id") for m in base.get("meetings", [])
                if m.get("source_id") and m.get("id")}
+    # 이번 배치에서 처리된 회의는 아직 meetings[]에 없다(배치 경로는 지금까지 등록을
+    # 하지 않았다). 카탈로그에서 채워 넣어야 readings가 날짜가 아닌 meeting id로 붙고,
+    # validate.py의 provenance 검사도 통과한다.
+    cat_path = f"{corpus}/_index/catalog.json"
+    if os.path.exists(cat_path):
+        try:
+            catalog = {r.get("source_id"): r for r in json.load(open(cat_path, encoding="utf-8"))}
+        except (json.JSONDecodeError, TypeError):
+            catalog = {}
+        used = {m.get("id") for m in base.get("meetings", [])}
+        nxt = 1 + max([int(re.sub(r'\D', '', i) or 0) for i in used] or [0])
+        for sid in sorted({r.get("mtg_source_id") for r in load("pool_readings.json")
+                           if r.get("mtg_source_id")} - set(sid2mid)):
+            row = catalog.get(sid)
+            if not row:
+                continue
+            mid = f"m{nxt}"
+            nxt += 1
+            base.setdefault("meetings", []).append(
+                {"id": mid, "date": row.get("date", ""), "title": row.get("title", ""),
+                 "source_id": sid, "path": row.get("path", "")})
+            sid2mid[sid] = mid
+            added["meeting"] = added.get("meeting", 0) + 1
     for r in load("pool_readings.json"):
         rid = r.get("id")
         if not rid or not r.get("who"):
             continue
         if not r.get("meeting") and r.get("mtg_source_id") in sid2mid:
             r["meeting"] = sid2mid[r["mtg_source_id"]]
-        r.pop("mtg_source_id", None)
+        if r.get("meeting"):
+            r.pop("mtg_source_id", None)     # 번역에 성공했을 때만 출처를 지운다
+        elif r.get("mtg_source_id"):
+            unmapped_reads.append(rid)       # 링크를 잃지 않고 남겨둔다
         old_r = by_id.get(rid)
         if old_r is None:
             if not (r.get("surface") and r.get("reading") and r.get("basis")):
@@ -199,6 +225,9 @@ def main():
     if orphan_reads:
         print(f"WARN: {len(orphan_reads)} reading resolutions reference ids that do not "
               f"exist and were skipped: {orphan_reads[:5]}")
+    if unmapped_reads:
+        print(f"WARN: {len(unmapped_reads)} readings could not be linked to a meetings[] "
+              f"entry (mtg_source_id kept for tracing): {unmapped_reads[:5]}")
 
     # meta
     bp = f"{work}/batches.json"

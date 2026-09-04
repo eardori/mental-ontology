@@ -34,11 +34,18 @@ Deps: python3 stdlib only.
 import argparse, glob, json, os, re, sys
 from datetime import datetime, timedelta, timezone
 
-AUTO_TITLE = re.compile(r'^\s*\d{4}[-.\s/]\d{1,2}[-.\s/]\d{1,2}([\s_T]+\d{1,2}[:\-]\d{2})?')
+# Plaud 자동 제목("2026-07-10 16:15:15")만 잡는다. 끝까지 앵커하지 않으면
+# "2026-07-10 넥스트라 협상 3차" 같은 사람이 쓴 제목까지 덮어쓴다.
+AUTO_TITLE = re.compile(
+    r'^\s*\d{4}[-.\s/]\d{1,2}[-.\s/]\d{1,2}'
+    r'([\s_T]+\d{1,2}[:\-]\d{2}([:\-]\d{2})?)?\s*$')
 CANON_CATS = {"내부-주간회의", "내부-전략", "내부-1on1", "외부-파트너", "외부-고객영업",
               "외부-투자IR", "강연-세미나", "인터뷰", "개인-통화", "기타"}
-MEAL_WORDS = ("식당", "점심", "저녁", "회식", "런치", "디너", "카페", "커피", "술",
-              "lunch", "dinner", "cafe", "restaurant", "bar")
+# 짧은 토큰의 부분일치가 자리를 오분류하면 EXTRACTION의 근거 보정까지 흘러간다
+# ('기술 로드맵'이 식사자리로 분류되면 그 회의 발언이 mid로 깎인다). 변별력 있는 말만 쓴다.
+MEAL_WORDS = ("식당", "식사", "점심", "회식", "런치", "디너", "브런치", "카페", "커피",
+              "술자리", "술집", "맥주", "소주", "와인", "반주", "만찬")
+MEAL_LATIN = r'\b(lunch|dinner|brunch|cafe|coffee|restaurant|bar|drinks)\b'
 VIDEO_WORDS = ("zoom", "meet.google", "teams", "webex", "hangout", "화상", "온라인", "구글밋")
 OFFICE_WORDS = ("회의실", "사무실", "office", "본사", "room", "미팅룸")
 
@@ -89,6 +96,10 @@ def load_events(corpus):
             st, en = parse_dt(e.get("start")), parse_dt(e.get("end"))
             if not st:
                 continue
+            # 종일 일정(연차·휴가·공휴일)은 자정~자정이라 그날 어떤 녹음과도 100% 겹친다 —
+            # 후보로 두면 모든 녹음이 '연차'라는 제목과 TPO를 뒤집어쓴다.
+            if not re.search(r'\d{2}:\d{2}', str(e.get("start", ""))):
+                continue
             out.append({**e, "_start": st, "_end": en or st + timedelta(minutes=60),
                         "_domain": dom, "_src": os.path.basename(p)})
     out.sort(key=lambda e: e["_start"])
@@ -105,7 +116,7 @@ def describe_setting(ev):
     blob = f"{ev.get('location','')} {ev.get('title','')} {ev.get('description','')}".lower()
     if any(w in blob for w in VIDEO_WORDS):
         where = "화상"
-    elif any(w in blob for w in MEAL_WORDS):
+    elif any(w in blob for w in MEAL_WORDS) or re.search(MEAL_LATIN, blob):
         where = "식사자리"
     elif any(w in blob for w in OFFICE_WORDS):
         where = "사무실"
@@ -223,6 +234,10 @@ def patch_frontmatter(path, updates):
         for i, ln in enumerate(lines):
             if re.match(rf'^{re.escape(k)}\s*:', ln):
                 lines[i] = line
+                # 블록 스타일("key:\n  - a\n  - b")이면 뒤따르는 항목 줄이 고아로 남는다
+                j = i + 1
+                while j < len(lines) and re.match(r'^\s+-\s', lines[j]):
+                    lines.pop(j)
                 break
         else:
             lines.append(line)
@@ -261,7 +276,10 @@ def main():
             continue
         setting, ext, n_att = describe_setting(ev)
         cat = suggest_category(ev, setting, ext, n_att)
-        att = [x.get("name") or x.get("email", "") for x in (ev.get("attendees") or [])]
+        # 표시 이름이 없는 참석자는 건너뛴다 — 이메일을 이름으로 넣으면
+        # person_meetings와 도시에가 'mina@nextra.co.kr' 이름으로 생긴다.
+        att = [x.get("name", "").strip() for x in (ev.get("attendees") or [])]
+        n_noname = sum(1 for x in (ev.get("attendees") or []) if not x.get("name"))
         att = [x for x in att if x]
         confident = score >= a.min_overlap
         n_ok += confident
@@ -285,6 +303,8 @@ def main():
             upd["category"] = cat
         elif cat and r.get("category") != cat:
             notes.append(f"분류 유지: '{r.get('category')}' (일정 기준 제안 '{cat}')")
+        if n_noname:
+            notes.append(f"표시 이름 없는 참석자 {n_noname}명은 제외됨 (이메일은 이름이 아니다)")
         for n in notes:
             print(f"       ! {n}")
         if confident:
@@ -292,11 +312,15 @@ def main():
 
     print(f"\n{'APPLIED' if a.apply else 'DRY RUN'} — 확정 {n_ok} · 확인 필요 {n_ask} · 매칭 없음 {n_none}")
     if a.apply:
-        n = 0
+        n, failed = 0, []
         for r, upd in changes:
             if patch_frontmatter(os.path.join(corpus, r["path"]), upd):
                 n += 1
+            else:
+                failed.append(r["path"])
         print(f"프론트매터 {n}건 갱신 — build_index.py → build_db.py 를 다시 실행하세요.")
+        if failed:
+            print(f"WARN: {len(failed)}건은 프론트매터가 없어 건너뛰었습니다: {failed[:3]}")
     elif changes:
         print("--apply 를 붙이면 확정 건의 setting/calendar_event(+빈 제목·참석자·분류)를 채웁니다.")
     if n_ask:

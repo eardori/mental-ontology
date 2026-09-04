@@ -43,8 +43,8 @@ def split_list(v):
                 q = None
             else:
                 cur += ch
-        elif ch in "\"'":
-            q = ch
+        elif ch in "\"'" and not cur.strip():
+            q = ch          # 항목 시작에서만 인용 시작. O'Brien 의 ' 는 이름의 일부다.
         elif ch == ",":
             out.append(cur.strip())
             cur = ""

@@ -541,8 +541,44 @@ def test_calendar(tmp):
     run("build_index.py", cal2)
     cat = json.loads((cal2 / "_index" / "catalog.json").read_text(encoding="utf-8"))
     row = next(r for r in cat if r["source_id"] == "acme-0520")
+    write(cal2 / "transcripts" / "2026" / "2026-05" / "2026-05-27_아포스트로피.md",
+          FM.format(title="아포스트로피", date="2026-05-27", cat="외부-파트너",
+                    parts="정우진, O'Brien, 이서연", sid="acme-0527", extra="",
+                    body="**[정우진] (00:01)** 테스트."))
+    run("build_index.py", cal2)
+    cat0 = json.loads((cal2 / "_index" / "catalog.json").read_text(encoding="utf-8"))
+    row0 = next(r for r in cat0 if r["source_id"] == "acme-0527")
+    check("an apostrophe in a name does not swallow the rest of the list",
+          row0["participants"] == ["정우진", "O'Brien", "이서연"], str(row0["participants"]))
     check("a comma inside an attendee name does not split them into two people",
           row["participants"] == ["정우진", "Kim, Mina"], str(row["participants"]))
+
+    cal3 = tmp / "corpus_cal3"
+    build_corpus_v2(cal3)
+    write(cal3 / "_meta" / "calendar" / "2026-05.json", json.dumps({
+        "fetched": "2026-05-27", "owner_domain": "acme.io", "events": [
+            {"id": "allday", "title": "연차", "start": "2026-05-20", "end": "2026-05-21",
+             "attendees": []},
+            {"id": "tech", "title": "기술 로드맵 검토", "start": "2026-05-20T14:00",
+             "end": "2026-05-20T15:00",
+             "attendees": [{"name": "정우진", "email": "wj@acme.io"},
+                           {"email": "guest@partner.io"}]}]}, ensure_ascii=False))
+    p3 = cal3 / "transcripts" / "2026" / "2026-05" / "2026-05-20_전략회의.md"
+    p3.write_text(p3.read_text(encoding="utf-8")
+                  .replace('duration_min: 10', 'duration_min: 60\nstart_time: "14:05"', 1)
+                  .replace('title: "전략회의"', 'title: "2026-05-20 넥스트라 협상 3차"'),
+                  encoding="utf-8")
+    run("build_index.py", cal3)
+    rc, out = run("match_calendar.py", cal3, "--apply")
+    md = p3.read_text(encoding="utf-8")
+    check("an all-day event never swallows a recording (it overlaps everything)",
+          "연차" not in md and "기술 로드맵" in out, out[:600])
+    check("'기술' is not read as 술자리 — that would downgrade the meeting's evidence",
+          "식사자리" not in md, md[:400])
+    check("a human title that merely starts with a date is not overwritten",
+          'title: "2026-05-20 넥스트라 협상 3차"' in md, md[:300])
+    check("an attendee with no display name is skipped, not written as an email",
+          "@partner.io" not in md and "제외됨" in out, out[:800])
 
     tz = tmp / "corpus_tz"
     build_corpus_v2(tz)
@@ -657,6 +693,9 @@ def test_batch_pipeline(tmp):
     root = tmp / "corpus_v2"
     W = root / "_ontology" / "_work" / "batch-test"
     W.mkdir(parents=True)
+    make_transcript(root, "2026-06-01_6월전략회의.md", "6월 전략회의", "2026-06-01",
+                    "acme-9001", "**[정우진] (00:01)** 채용은 문화 적합이 먼저다.")
+    run("build_index.py", root)      # 배치는 실제 회의록을 처리한다 — 카탈로그에 있어야 한다
     # fake extraction output: one restating instance, one new belief, junk holder,
     # a tension, a self-org network fact and a real one
     (W / "extract-b00.json").write_text(json.dumps({"batch": "b00", "meetings": [{
@@ -673,7 +712,7 @@ def test_batch_pipeline(tmp):
         "network_facts": [{"a": "Acme", "b": "그로우캐피탈", "kind": "투자", "note": "자사 엣지 — 드롭돼야 함"},
                           {"a": "박도현", "b": "제임스(정우진)", "kind": "협업", "note": "변형 이름 — 정규화돼야 함"}],
         "readings": [
-            {"id": "r-b00-1", "who": "정우진", "meeting": "m1", "date": "2026-06-01",
+            {"id": "r-b00-1", "who": "정우진", "date": "2026-06-01",
              "surface": "채용은 천천히 해도 된다", "reading": "이번 분기 안에 팀을 늘리길 원한다",
              "basis": [{"kind": "선제언급", "detail": "안건 첫 순서로 꺼냄"}],
              "confidence": "보통", "status": "추정"},
@@ -731,6 +770,10 @@ def test_batch_pipeline(tmp):
           and reads["r-1"]["surface"].startswith("속도가 먼저다"), str(reads.get("r-1")))
     check("a reading held by a non-canonical speaker is dropped, not guessed",
           "r-junk" not in reads, str(list(reads)))
+    mids = {m["id"]: m for m in d["meetings"]}
+    check("the batch pipeline registers the meeting it processed (provenance)",
+          any(m.get("source_id") == "acme-9001" for m in d["meetings"]),
+          str([m.get("source_id") for m in d["meetings"]]))
     check("batch readings get a real meetings[].id, not a bare date",
           reads["r-b00-1"].get("meeting") in {m["id"] for m in d["meetings"]}
           and "mtg_source_id" not in reads["r-b00-1"], str(reads.get("r-b00-1")))
