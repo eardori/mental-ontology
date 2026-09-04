@@ -111,7 +111,8 @@ def main():
     if os.path.exists(opath):
         d = json.load(open(opath, encoding="utf-8"))
         stats = {"people": 0, "models_removed": 0, "models_unheld": 0,
-                 "relations": 0, "network": 0, "about": 0}
+                 "relations": 0, "network": 0, "about": 0,
+                 "readings": 0, "traps": 0, "conflict_axes": 0}
         before = len(d["people"])
         d["people"] = [p for p in d["people"] if norm(p.get("name", "")) != name]
         stats["people"] = before - len(d["people"])
@@ -141,6 +142,43 @@ def main():
         d["network"] = [x for x in d.get("network", [])
                         if name not in (norm(x.get("a", "")), norm(x.get("b", "")))]
         stats["network"] = n0 - len(d["network"])
+
+        # v3/v4 layers: readings are the most personal data in the corpus (a verbatim
+        # quote plus an inference about the person's intent) — they must go first.
+        def mask_text(v):
+            if not isinstance(v, str):
+                return v
+            for tok in body_toks:
+                v = v.replace(tok, MASK)
+            return v
+
+        n0 = len(d.get("readings", []))
+        d["readings"] = [r for r in d.get("readings", [])
+                         if norm(r.get("who", "")) != name]
+        stats["readings"] = n0 - len(d["readings"])
+        for r in d.get("readings", []):          # surviving readings may still name them
+            for k in ("surface", "reading"):
+                r[k] = mask_text(r.get(k))
+            for b in r.get("basis", []) or []:
+                for k in ("detail", "quote"):
+                    if b.get(k):
+                        b[k] = mask_text(b[k])
+            if isinstance(r.get("resolution"), dict) and r["resolution"].get("note"):
+                r["resolution"]["note"] = mask_text(r["resolution"]["note"])
+            r["related_models"] = [m for m in r.get("related_models", []) if m in ids]
+
+        n0 = len(d.get("traps", []))
+        d["traps"] = [t for t in d.get("traps", []) if norm(t.get("who", "")) != name]
+        stats["traps"] = n0 - len(d["traps"])
+        for t in d.get("traps", []):
+            t["desc"] = mask_text(t.get("desc"))
+            if t.get("model_id") and t["model_id"] not in ids:
+                t.pop("model_id")               # pointed at a model this purge removed
+
+        n0 = len(d.get("conflict_axes", []))
+        d["conflict_axes"] = [x for x in d.get("conflict_axes", [])
+                              if name not in (norm(x.get("a", "")), norm(x.get("b", "")))]
+        stats["conflict_axes"] = n0 - len(d["conflict_axes"])
         changes.append(("_ontology/objects.json", json.dumps(stats, ensure_ascii=False)))
         if apply_:
             backup(opath)

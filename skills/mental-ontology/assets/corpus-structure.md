@@ -49,7 +49,7 @@ Plain markdown — works standalone or inside an Obsidian vault.
   must list **every raw label** the person appears under in transcripts;
   `Name(Other)` names match both halves automatically:
   ```json
-  [{ "name": "James(정우진)", "role": "CEO", "org": "Acme",
+  [{ "name": "James(정우진)", "role": "CEO", "org": "Acme", "owner": true,
      "aliases": ["제임스", "Speaker 2(2026-07-10)"],
      "traits": "구조 먼저, 숫자로 검증", "meetings": ["2026-07-10"],
      "tier": "core",
@@ -59,6 +59,9 @@ Plain markdown — works standalone or inside an Obsidian vault.
      "intro_by": "이서연",
      "personal": [{ "date": "2026-06-24", "note": "10월 마라톤 준비 중", "use": "사적" }] }]
   ```
+  `owner: true` marks the corpus owner — exactly one entry should have it; it is what
+  lets `build_briefing.py` separate 내가 한 약속 from 상대가 한 약속 (absent → it guesses
+  the most-attending person and labels the guess).
   `relationship` = 나(owner)와의 관계 (팀원/내부-타팀/상사·보드/파트너/고객/투자자/지인/가족 —
   자유 텍스트). `team`/`manager` = **조직도** — org chart lives as per-person edges here,
   and `build_db.py` derives them into the `network` table as `보고` edges so the

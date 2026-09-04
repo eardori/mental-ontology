@@ -167,13 +167,19 @@ def main():
     # readings (대화 의도): pooled per-meeting, deduped by id. Resolutions supplied by the
     # extraction agents (status 확인됨/빗나감 for an EXISTING id) update in place — that
     # re-check is what keeps the hit rate honest.
-    by_id = {r.get("id"): r for r in base.get("readings", [])}
+    by_id, orphan_reads = {r.get("id"): r for r in base.get("readings", [])}, []
     for r in load("pool_readings.json"):
         rid = r.get("id")
         if not rid or not r.get("who"):
             continue
         old_r = by_id.get(rid)
         if old_r is None:
+            if not (r.get("surface") and r.get("reading") and r.get("basis")):
+                # a resolution stub for an id that no longer exists (typo, or the reading
+                # was purged) — appending it would hand validate.py a malformed row with
+                # no trace of where it came from
+                orphan_reads.append(rid)
+                continue
             base.setdefault("readings", []).append(r)
             by_id[rid] = r
             added["reading"] += 1
@@ -182,6 +188,9 @@ def main():
             old_r["resolution"] = r.get("resolution") or old_r.get("resolution") or {}
             added["resolved"] += 1
     base.get("readings", []).sort(key=lambda r: (r.get("date", ""), r.get("id", "")))
+    if orphan_reads:
+        print(f"WARN: {len(orphan_reads)} reading resolutions reference ids that do not "
+              f"exist and were skipped: {orphan_reads[:5]}")
 
     # meta
     bp = f"{work}/batches.json"

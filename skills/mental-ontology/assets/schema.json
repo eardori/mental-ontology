@@ -17,8 +17,8 @@
       "properties": {
         "schema_version": {
           "type": "integer",
-          "const": 2,
-          "description": "2 = holder/about split · 3 = evidence_type/traps/conflict_axes/playbook · 4 = readings (대화 의도). Additive; readers must tolerate older versions."
+          "description": "2 = holder/about split · 3 = evidence_type/traps/conflict_axes/playbook · 4 = readings (대화 의도). Additive; readers must tolerate older versions.",
+          "minimum": 2
         },
         "title": {
           "type": "string"

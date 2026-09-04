@@ -82,6 +82,9 @@ Goal: replace "Speaker 1/2" and misattributed labels with real names, learning o
    been confirmed once is recognized for free in every later recording — this is what makes
    frequent casual recording sustainable, so treat enrollment (step 5b) as mandatory, not
    optional polish.
+0b. **Who is the user?** The registry entry for the corpus owner carries `"owner": true`.
+   If no entry has it, ask once — the briefing needs it to separate "내가 한 약속" from
+   "상대가 한 약속" (without it, it guesses the most-attending person and says so).
 1. Load `_meta/speakers.json` — this is the **person registry**, not just an STT map: `[{name, role, org, aliases[], traits, meetings:[dates], tier, first_met_context, intro_by, personal[]}]`. Create if missing.
    - `tier`: `core` (deep mental-model analysis) / `acquaintance` (light dossier) / `contact` (name + meetings only). New confirmed speakers default to `acquaintance`; promote to `core` when the user starts asking about how they think.
    - `first_met_context` ("스타트업얼라이언스 행사에서"), `intro_by` (who introduced them) — capture when the transcript or the user reveals it; this is네트워커의 핵심 자산.
@@ -186,7 +189,16 @@ Run after every batch of new files (all three are cheap local scripts):
 python3 <skill_dir>/scripts/build_index.py <corpus_path>      # catalog + INDEX.md
 python3 <skill_dir>/scripts/build_db.py <corpus_path>         # DB incl. person_meetings
 python3 <skill_dir>/scripts/build_dossiers.py <corpus_path>   # people/ dossiers + INDEX
+python3 <skill_dir>/scripts/build_briefing.py <corpus_path> --meeting <source_id>
 ```
+
+**Show the briefing — this is the payoff of the sync, not an optional extra.** The user
+cannot ask about what they did not notice, so the last step of every sync PUSHES it:
+what they promised, what the other side seemed to be after, what went unanswered, who
+talked how much, and which open loops with those people are still hanging. Relay it as
+it is (it is computed from the DB — do not embellish, and never add a "signal" the
+script did not print). For a multi-recording sync, run it per meeting and lead with the
+one that has the most open items; for a catch-up, `--days N` gives the digest instead.
 
 Update `_meta/state.json.last_synced`. This keeps the daily loop rewarding: every
 sync immediately refreshes each person's 접촉 이력 and the contacts/승격 후보 list —

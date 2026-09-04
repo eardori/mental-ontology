@@ -12,7 +12,7 @@ migration classifies, canonicalizes, and caps evidence correctly.
 
 No external dependencies (python3 stdlib only). Exit 0 = all green.
 """
-import json, os, shutil, sqlite3, subprocess, sys, tempfile
+import json, os, re, shutil, sqlite3, subprocess, sys, tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -353,6 +353,90 @@ def test_readings(tmp):
     check("a layer that mostly misses says so instead of getting louder",
           rc == 0 and "적중률 17%" in out and "비중을 줄이고" in out, out)
 
+def test_briefing(tmp):
+    print("\n[8] build_briefing — push what the user missed (computed, not inferred)")
+    root = tmp / "corpus_v2"
+
+    rc, out = run("build_briefing.py", root, "--meeting", "acme-0520")
+    check("meeting briefing leads with what I owe someone",
+          rc == 0 and "내가 해야 할 것" in out and "번들 기능 스펙 초안" in out, out)
+    check("meeting briefing surfaces the open reading with its signal",
+          "대화 의도" in out and "이번 분기 안에" in out and "반복(2회)" in out, out)
+    check("talk share is reported WITH the unattributed share (no lying by omission)",
+          "발화 비중" in out and "화자 미상" in out, out)
+    check("owner was guessed, and the briefing says so",
+          "최다 참석자" in out and "owner" in out, out)
+
+    rc, out = run("build_briefing.py", root, "--meeting", "acme-0526")
+    check("participants come from the cleaned join, not raw frontmatter",
+          rc == 0 and "[[정우진]]" not in out and "\\uc774" not in out
+          and "이서연" in out.split("##")[0] and "정우진" in out.split("##")[0], out)
+
+    rc, out = run("build_briefing.py", root, "--meeting", "없는회의")
+    check("an unknown meeting key fails gracefully, exit 0",
+          rc == 0 and "찾지 못했습니다" in out, out)
+
+    rc, out = run("build_briefing.py", root, "--with", "이서연", "--me", "정우진")
+    check("pre-meeting briefing puts MY unfinished promise first",
+          rc == 0 and "내가 아직 안 한 것" in out
+          and out.index("내가 아직 안 한 것") < out.index("최근 접촉"), out)
+    check("pre-meeting briefing carries the shared axiom of our conflict",
+          "공유 공리" in out and "LTV가 전부다" in out, out)
+
+    rc, out = run("build_briefing.py", root, "--with", "정우진", "--me", "이서연")
+    check("personal context keeps its use markers (사적/언급금지 are not for me to raise)",
+          "△" in out and "⛔" in out and "먼저 꺼내지 않는다" in out, out)
+
+    rc, out = run("build_briefing.py", root, "--with", "서연님", "--me", "정우진")
+    check("--with resolves an alias to the canonical person",
+          rc == 0 and "만나기 전 브리핑 — 이서연" in out
+          and "기록이 없습니다" not in out, out[:300])
+
+    rc, out = run("build_briefing.py", root, "--meeting", "acme-0520")
+    pct = [int(x) for x in re.findall(r"(\d+)%\(질문", out)]
+    unattr = int(re.search(r"화자 미상 (\d+)%", out).group(1)) if "화자 미상" in out else 0
+    check("talk shares are of the whole meeting, so they do not sum to 100% when some "
+          "speech is unattributed", sum(pct) + unattr <= 101 and sum(pct) < 100,
+          f"shares={pct} unattr={unattr}")
+    check("마무리발언 is not filed under '답 없이 지나간 대목' (it is not an evasion)",
+          "답 없이 지나간" not in out or "마무리발언" not in
+          out.split("## 답 없이 지나간")[1].split("##")[0], out)
+    sect = (out.split("## 처음 만난 사람")[1].split("---")[0].split("##")[0]
+            if "## 처음 만난 사람" in out else "")
+    check("the owner is not listed as someone they just met",
+          "정우진" not in sect and "이서연" in sect, sect)
+
+    rc, out = run("build_briefing.py", root, "--days", "30", "--me", "정우진")
+    check("digest reports the reading hit rate so the layer stays accountable",
+          rc == 0 and "적중률" in out, out)
+    check("digest flags people who are in the corpus but not the registry",
+          "레지스트리에 없음" in out, out)
+
+    # owner:true in the registry must beat the most-attending guess
+    reg = json.loads((root / "_meta" / "speakers.json").read_text(encoding="utf-8"))
+    reg[1]["owner"] = True          # 이서연
+    write(root / "_meta" / "speakers.json", json.dumps(reg, ensure_ascii=False))
+    rc, out = run("build_briefing.py", root, "--meeting", "acme-0520")
+    check("registry owner:true is used and no guess warning is printed",
+          rc == 0 and "최다 참석자" not in out, out)
+    reg[1].pop("owner")
+    write(root / "_meta" / "speakers.json", json.dumps(reg, ensure_ascii=False))
+
+    stale = tmp / "corpus_staledb"
+    (stale / "_ontology").mkdir(parents=True)
+    con = sqlite3.connect(stale / "_ontology" / "ontology.db")
+    con.execute("CREATE TABLE meetings(source_id TEXT, date TEXT)")
+    con.commit(); con.close()
+    rc, out = run("build_briefing.py", stale, "--days", "7")
+    check("a pre-v4 database says to rebuild instead of throwing OperationalError",
+          rc != 0 and "build_db.py" in out and "readings" in out, out)
+
+    empty = tmp / "corpus_nodb"
+    (empty / "_meta").mkdir(parents=True)
+    rc, out = run("build_briefing.py", empty)
+    check("no database → a clear instruction, not a traceback",
+          rc != 0 and "build_db.py" in out, out)
+
 def test_validate_catches_errors(tmp):
     print("\n[2] validate — must catch integrity & honesty violations")
     root, bad = tmp / "corpus_v2", tmp / "corpus_bad"
@@ -555,6 +639,20 @@ def test_purge_person(tmp):
     t = (pp / "transcripts" / "2026" / "2026-05" / "2026-05-20_전략회의.md").read_text(encoding="utf-8")
     check("transcript mentions anonymized (alias 서연님 included)",
           "이서연" not in t and "서연님" not in t and "[삭제된 인물]" in t, t[:300])
+    check("readings about the purged person are gone (the most personal layer)",
+          all(r.get("who") != "이서연" for r in d.get("readings", [])),
+          json.dumps(d.get("readings", []), ensure_ascii=False)[:300])
+    check("their name is masked out of readings that survive",
+          "이서연" not in json.dumps(d.get("readings", []), ensure_ascii=False), "")
+    check("conflict axes involving them are removed",
+          all("이서연" not in (x.get("a"), x.get("b")) for x in d.get("conflict_axes", [])), "")
+    check("traps keep no dangling model_id after their solely-held models went",
+          all(t.get("model_id") in {m["id"] for m in d["models"]}
+              for t in d.get("traps", []) if t.get("model_id")), "")
+    rc2, out2 = run("build_db.py", pp)
+    rc3, out3 = run("validate.py", pp)
+    check("the documented post-purge rebuild still validates (no orphan rows left behind)",
+          rc2 == 0 and rc3 == 0, out3[-600:])
     vp = json.loads((pp / "_meta" / "voiceprints.json").read_text(encoding="utf-8"))
     check("voiceprint purged (biometric data does not survive)",
           "이서연" not in vp["people"] and "정우진" in vp["people"], str(list(vp["people"])))
@@ -776,6 +874,7 @@ def main():
         test_pipeline_v2(tmp)
         test_dossiers(tmp)
         test_readings(tmp)
+        test_briefing(tmp)
         test_validate_catches_errors(tmp)
         test_batch_pipeline(tmp)
         test_purge_person(tmp)

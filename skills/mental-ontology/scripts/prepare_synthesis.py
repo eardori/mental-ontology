@@ -35,6 +35,7 @@ def main():
 
     by_person = defaultdict(list)
     tensions, network, timeline, readings = [], [], [], []
+    dropped_reads = Counter()
     n_meet, n_skip_done, dropped = 0, 0, Counter()
     for p in sorted(glob.glob(os.path.join(work, "extract-b*.json"))):
         try:
@@ -64,7 +65,7 @@ def main():
                 # (a recurring, confirmed intent belongs in models[], not here)
                 who = norm(r.get("who", ""))
                 if who not in canon:
-                    dropped[who or "<empty>"] += 1
+                    dropped_reads[who or "<empty>"] += 1
                     continue
                 readings.append({**r, "who": who, "date": r.get("date") or ctx["mtg_date"],
                                  "mtg_source_id": ctx["mtg_source_id"]})
@@ -128,6 +129,9 @@ def main():
         print(f"  {k:32} existing={len(t['existing_models']):3} instances={len(t['instances']):3}{mark}")
     print(f"pools: tensions {len(tensions)} | network {len(network)} | timeline {len(timeline)} "
           f"| readings {len(readings)}")
+    if dropped_reads:
+        print(f"WARN: {sum(dropped_reads.values())} readings dropped (non-canonical who) — "
+              f"{dict(dropped_reads.most_common(5))}")
     if dropped:
         print(f"WARN: {sum(dropped.values())} instances dropped (non-canonical holder) — "
               f"top: {dropped.most_common(5)}")

@@ -101,6 +101,13 @@ Plaud MCP / audio → transcripts/*.md (frontmatter + 요약 + 액션아이템 +
   (what was said) beside `reading` (what was inferred). Every reading starts `추정` and is
   resolved by a later meeting into `확인됨`/`빗나감`, which is what lets validate.py and
   build_db.py print a **hit rate** — the layer has to be able to say how often it was wrong.
+- **The briefing is the only push surface, and it is deliberately dumb.**
+  `build_briefing.py` computes everything it prints from `ontology.db` — open commitments,
+  open readings and their basis signals, contact gaps, turn/character/question counts — so a
+  briefing cannot hallucinate. The skill relays it verbatim and may add prose, never facts.
+  Talk-share always prints the unattributed share alongside it. `--me` / registry
+  `"owner": true` is what separates "내가 한 약속" from everyone else's; without it the
+  script guesses the most-attending person and labels the guess.
 - **Voice identity closes the ingest loop.** `_meta/voiceprints.json` (written by
   `voiceprint.py`) maps campplus embeddings to registry canonical names, so a person confirmed
   once is auto-labeled in every later audio import: `diarize` → `recluster` → `voiceprint embed`

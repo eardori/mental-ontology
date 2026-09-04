@@ -17,6 +17,12 @@ the DB + transcripts, per **`assets/PLAYBOOK.md` Part 1**. Core discipline:
   Mention past `빗나감` readings about that person when relevant; an honest miss buys more
   trust than a hidden one. When the user asks "저 사람이 뭘 원하는 거야 / 내가 뭘 놓쳤어",
   this layer is the answer, paired with the open commitments.
+- **"미팅 준비해줘 / 내일 〈이름〉 만나" → run the script first**:
+  `python3 <skill_dir>/scripts/build_briefing.py <corpus> --with "<이름>"` gives the
+  computed 30-second brief (내가 안 한 약속 → 확인할 추정 → 이 사람과 일하는 법 → 충돌 축의
+  공유 공리 → 개인 맥락 with △/⛔ → 최근 접촉). Add prose and transcript nuance on top of
+  it; never replace its facts with your own recollection. Same script covers "지난주 뭐
+  놓쳤지?" (`--days 7`) and "어제 회의 정리해줘" (`--meeting <source_id>`).
 - **Freshness**: a model whose `last_seen` is 6+ months behind the newest meeting
   (validate.py flags these as STALE) is answered in past tense — "당시에는 ~라고
   봤습니다 (이후 확인 없음)" — never as their current view. People change.

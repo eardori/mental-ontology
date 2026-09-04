@@ -27,9 +27,9 @@ summary alone** (details, formats, and guardrails live in the stage files):
 | 0 | Setup & config | first run, "설치 확인" | `stages/ingest.md` |
 | 1–2 | Fetch from Plaud · Whisper | "녹음 가져와줘", "동기화" | `stages/ingest.md` |
 | 3 | Speaker attribution (+voiceprint, backfill, 조직도) | auto; "화자 정리해줘", "이 목소리 누구야", "조직도 입력해줘" | `stages/ingest.md` |
-| 4–5 | Clean & save · Index & refresh | auto after fetch | `stages/ingest.md` |
+| 4–5 | Clean & save · Index & refresh · **놓친 것 브리핑** | auto after fetch | `stages/ingest.md` |
 | 6–7 | Ontology analysis · Database (+batch pipeline) | "온톨로지 분석해줘", "회의 N개 반영해줘" | `stages/ontology.md` |
-| 8 | **Query mode** — Q&A over the data | "X는 어떻게 생각해?", "미팅 준비해줘", "내가 뭘 놓쳤지?" | `stages/answer.md` |
+| 8 | **Query mode** — Q&A over the data (+브리핑) | "X는 어떻게 생각해?", "미팅 준비해줘", "내가 뭘 놓쳤지?", "이번 주 정리해줘" | `stages/answer.md` |
 | 9 | **Strategy mode** — ideation & planning | "사업 아이디어", "전략 짜줘", "정렬 점검" | `stages/answer.md` |
 
 Stages 1–5 run per-recording; 6–7 over the corpus; 8–9 are the daily payoff — most
@@ -72,7 +72,7 @@ block, one quoted prompt per line.
 | Just finished | Suggest (fill 〈…〉 from their data) |
 |---|---|
 | Install / Stage 0 | "최근 Plaud 녹음 가져와서 정리해줘" · "이번 달 회의 다 코퍼스에 넣어줘" |
-| First sync (1–5) | "온톨로지 분석해줘" · "〈가장 많이 등장한 사람〉 화자 확인해줘" |
+| First sync (1–5) | "온톨로지 분석해줘" · "〈방금 회의 참석자〉 만나기 전 브리핑 해줘" · "〈가장 많이 등장한 사람〉 화자 확인해줘" |
 | Ontology (6–7) | "〈핵심 인물〉은 어떤 사람이야?" · "〈핵심 인물〉 도시에 보여줘" · "우리 조직 어디가 안 맞아?" |
 | A query answer (8) | the natural follow-up + one strategy hook: "〈방금 주제〉로 전략 옵션 짜줘 (S2)" |
 | A strategy deliverable (9) | "〈추천 옵션〉 반대할 〈인물〉 설득 브리핑 만들어줘 (S3)" · "다음 달에 정렬 점검 다시 해줘 (S4)" |
@@ -88,4 +88,5 @@ Stage details: `stages/ingest.md` (0–5) · `stages/ontology.md` (6–7 + batch
 - `scripts/` — `build_index` · `build_db` · `build_dossiers` · `validate` ·
   `prepare_synthesis` + `merge_ontology` (batch pipeline) · `migrate_objects` (v1→v2) ·
   `purge_person` (right-to-be-forgotten) · `whisper_transcribe` ·
-  `diarize` + `recluster` + `voiceprint` + `merge_diar` (audio → who said what)
+  `diarize` + `recluster` + `voiceprint` + `merge_diar` (audio → who said what) ·
+  `build_briefing` (놓친 것 브리핑 — 회의 직후 / 만나기 전 / 주간)
