@@ -14,6 +14,30 @@ CAT_MAP = {"내부-회의": "내부-전략", "회의": "내부-전략", "내부"
            "IR": "외부-투자IR", "강연": "강연-세미나", "세미나": "강연-세미나",
            "통화": "개인-통화"}
 
+def split_list(v):
+    """Split a YAML-ish inline list, respecting quotes: ["a", "Kim, Mina"] → 2 items.
+
+    Naive comma splitting turns one attendee named "Kim, Mina" into two people, who
+    then get their own person_meetings rows and dossiers.
+    """
+    out, cur, q = [], "", None
+    for ch in v:
+        if q:
+            if ch == q:
+                q = None
+            else:
+                cur += ch
+        elif ch in "\"'":
+            q = ch
+        elif ch == ",":
+            out.append(cur.strip())
+            cur = ""
+        else:
+            cur += ch
+    out.append(cur.strip())
+    return [x for x in out if x]
+
+
 def parse_fm(text):
     m = re.match(r'^---\s*\n(.*?)\n---\s*\n', text, re.S)
     if not m:
@@ -25,7 +49,7 @@ def parse_fm(text):
             continue
         k, v = mm.group(1), mm.group(2).strip().strip('"')
         if v.startswith('[') and v.endswith(']'):
-            v = [x.strip().strip('"') for x in v[1:-1].split(',') if x.strip()]
+            v = split_list(v[1:-1])
         fm[k] = v
     return fm
 
@@ -53,6 +77,9 @@ def main():
             "source_id": fm.get("source_id", ""),
             "duration_min": int(fm["duration_min"]) if str(fm.get("duration_min", "")).isdigit() else None,
             "transcribed_by": fm.get("transcribed_by", ""),
+            "start_time": str(fm.get("start_time", "")),   # HH:MM — 캘린더 매칭 키
+            "setting": str(fm.get("setting", "")),         # TPO (match_calendar.py)
+            "calendar_event": str(fm.get("calendar_event", "")),
             "part": fm.get("part", ""),
             "path": os.path.relpath(p, corpus),
             "vault_link": os.path.splitext(os.path.basename(p))[0],

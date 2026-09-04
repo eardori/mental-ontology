@@ -437,6 +437,141 @@ def test_briefing(tmp):
     check("no database → a clear instruction, not a traceback",
           rc != 0 and "build_db.py" in out, out)
 
+CAL = {"fetched": "2026-05-27", "range": ["2026-05-01", "2026-05-31"],
+       "owner_domain": "acme.io", "events": [
+    {"id": "ev1", "title": "제품 전략 회의 — 다음 분기", "start": "2026-05-20T10:00",
+     "end": "2026-05-20T11:30", "location": "본사 3층 회의실", "recurring": False,
+     "attendees": [{"name": "정우진", "email": "wj@acme.io", "self": True},
+                   {"name": "이서연", "email": "sy@acme.io"}]},
+    {"id": "ev2", "title": "넥스트라 김상무님 저녁", "start": "2026-05-22T19:00",
+     "end": "2026-05-22T21:00", "location": "삼청동 한식당", "recurring": False,
+     "attendees": [{"name": "정우진", "email": "wj@acme.io", "self": True},
+                   {"name": "Mina Kim", "email": "mina@nextra.co.kr"}]},
+    {"id": "ev3", "title": "주간 스탠드업", "start": "2026-05-25T09:30",
+     "end": "2026-05-25T10:00", "description": "https://meet.google.com/abc",
+     "recurring": True,
+     "attendees": [{"name": "정우진", "email": "wj@acme.io", "self": True},
+                   {"name": "이서연", "email": "sy@acme.io"},
+                   {"name": "박도현", "email": "dh@acme.io"}]}]}
+
+def test_calendar(tmp):
+    print("\n[9] match_calendar — 녹음 ↔ 일정 매칭, TPO를 근거의 일부로")
+    root = tmp / "corpus_cal"
+    build_corpus_v2(root)
+    write(root / "_meta" / "calendar" / "2026-05.json", json.dumps(CAL, ensure_ascii=False))
+    for rel, t in [("2026-05-20_전략회의.md", "10:05"),
+                   ("2026-05-22_외부미팅-넥스트라.md", "19:10")]:
+        p = root / "transcripts" / "2026" / "2026-05" / rel
+        p.write_text(p.read_text(encoding="utf-8").replace(
+            "duration_min: 10", 'duration_min: 60\nstart_time: "%s"' % t, 1), encoding="utf-8")
+    run("build_index.py", root)
+
+    rc, out = run("match_calendar.py", root)
+    check("dry run by default, and it says so", rc == 0 and "DRY RUN" in out, out[-300:])
+    check("time overlap matches the right event",
+          "제품 전략 회의" in out and "시간 겹침" in out, out)
+    check("TPO is derived from the calendar, not guessed",
+          "저녁·금 · 식사자리 · 외부 포함(2인)" in out and "외부도메인 nextra.co.kr" in out, out)
+    check("a same-day-only candidate is offered but not confirmed",
+          "시작 시각 없음 — 그날 유일한 일정" in out and "확인 필요 2" in out, out)
+    check("a human-set title/category is reported, never silently replaced",
+          "제목 유지(사람이 정함)" in out and "분류 유지" in out, out)
+    before = (root / "transcripts" / "2026" / "2026-05" / "2026-05-20_전략회의.md").read_text(encoding="utf-8")
+    check("dry run wrote nothing", "setting:" not in before, before[:200])
+
+    rc, out = run("match_calendar.py", root, "--apply")
+    check("apply patches only confirmed matches", rc == 0 and "프론트매터 2건 갱신" in out, out[-300:])
+    md = (root / "transcripts" / "2026" / "2026-05" / "2026-05-22_외부미팅-넥스트라.md").read_text(encoding="utf-8")
+    check("setting + provenance land in the frontmatter",
+          '설정' not in md and 'setting: "저녁·금 · 식사자리 · 외부 포함(2인)"' in md
+          and 'calendar_event: "ev2"' in md, md[:400])
+    body_before = before.split("\n---\n", 1)[1]
+    after20 = (root / "transcripts" / "2026" / "2026-05" / "2026-05-20_전략회의.md").read_text(encoding="utf-8")
+    check("only the frontmatter changed — the transcript body is byte-identical",
+          after20.split("\n---\n", 1)[1] == body_before, "")
+    check("a human-set title survives the patch", 'title: "외부미팅 넥스트라"' in md, md[:200])
+
+    run("build_index.py", root)
+    run("build_db.py", root)
+    db = sqlite3.connect(root / "_ontology" / "ontology.db")
+    got = db.execute("SELECT setting, start_time FROM meetings WHERE source_id='acme-0522'").fetchone()
+    check("setting reaches the database (so answers and briefings can use it)",
+          got and "식사자리" in got[0] and got[1] == "19:10", str(got))
+    db.close()
+
+    rc, out = run("build_briefing.py", root, "--meeting", "acme-0522", "--me", "정우진")
+    check("the meeting briefing header carries the TPO",
+          rc == 0 and "식사자리" in out.split("##")[0], out[:300])
+
+    rc, out = run("build_briefing.py", root, "--upcoming", "2026-05-20", "--me", "정우진")
+    check("--upcoming lists the day's events with who I am meeting",
+          rc == 0 and "제품 전략 회의" in out and "이서연" in out, out)
+    check("--upcoming leads with what I owe that person",
+          "내가 안 한 것" in out and "번들 기능 스펙 초안" in out, out)
+    reg = json.loads((root / "_meta" / "speakers.json").read_text(encoding="utf-8"))
+    reg.append({"name": "Mina", "role": "파트너", "org": "넥스트라", "aliases": [],
+                "meetings": [], "tier": "contact"})
+    write(root / "_meta" / "speakers.json", json.dumps(reg, ensure_ascii=False))
+    rc, out = run("build_briefing.py", root, "--upcoming", "2026-05-22", "--me", "정우진")
+    check("an unknown calendar name is a name-variant candidate, never a silent match",
+          "기록 없음" in out and "혹시" in out and "aliases" in out, out)
+    rc, out = run("build_briefing.py", root, "--upcoming", "2026-06-30", "--me", "정우진")
+    check("a day with no cached events says so plainly", rc == 0 and "일정이 없습니다" in out, out)
+
+    # --- regressions from code review: each of these wrote wrong data into a transcript
+    cal2 = tmp / "corpus_cal2"
+    build_corpus_v2(cal2)
+    write(cal2 / "_meta" / "calendar" / "2026-05.json", json.dumps({
+        "fetched": "2026-05-27", "events": [          # no owner_domain, name-only attendees
+            {"id": "x1", "title": "김상무님 저녁", "start": "2026-05-20T19:00",
+             "end": "2026-05-20T21:00", "location": "한식당",
+             "attendees": [{"name": "정우진"}, {"name": "Kim, Mina"}]}]}, ensure_ascii=False))
+    p20 = cal2 / "transcripts" / "2026" / "2026-05" / "2026-05-20_전략회의.md"
+    p20.write_text(p20.read_text(encoding="utf-8").replace(
+        'duration_min: 10', 'duration_min: 60\nstart_time: "19:05"', 1)
+        .replace("category: 내부-전략", "category: 기타")
+        .replace('participants: [정우진, 이서연]', 'participants: []'), encoding="utf-8")
+    run("build_index.py", cal2)
+    rc, out = run("match_calendar.py", cal2, "--apply")
+    md = p20.read_text(encoding="utf-8")
+    check("without domains it says 내부·외부 미상 instead of asserting 내부",
+          "미상" in md and "내부(2인)" not in md, md[:400])
+    check("...and it suggests no category rather than a wrong one",
+          "category: 기타" in md, md[:400])
+    run("build_index.py", cal2)
+    cat = json.loads((cal2 / "_index" / "catalog.json").read_text(encoding="utf-8"))
+    row = next(r for r in cat if r["source_id"] == "acme-0520")
+    check("a comma inside an attendee name does not split them into two people",
+          row["participants"] == ["정우진", "Kim, Mina"], str(row["participants"]))
+
+    tz = tmp / "corpus_tz"
+    build_corpus_v2(tz)
+    import datetime as _dt
+    off = _dt.datetime.now().astimezone().strftime("%z")      # this machine's offset
+    _local = _dt.datetime(2026, 5, 20, 10, 0)
+    _shift = _dt.timedelta(hours=int(off[:3]), minutes=int(off[0] + off[3:5]))
+    utc_start = (_local - _shift).strftime("%Y-%m-%dT%H:%M:%SZ")
+    utc_end = (_local + _dt.timedelta(minutes=90) - _shift).strftime("%Y-%m-%dT%H:%M:%SZ")
+    write(tz / "_meta" / "calendar" / "2026-05.json", json.dumps({
+        "fetched": "2026-05-27", "owner_domain": "acme.io", "events": [
+            {"id": "utc1", "title": "UTC로 적힌 일정", "start": utc_start,
+             "end": utc_end, "attendees": [{"email": "wj@acme.io"}]}]},
+        ensure_ascii=False))
+    p2 = tz / "transcripts" / "2026" / "2026-05" / "2026-05-20_전략회의.md"
+    p2.write_text(p2.read_text(encoding="utf-8").replace(
+        'duration_min: 10', 'duration_min: 60\nstart_time: "10:05"', 1), encoding="utf-8")
+    run("build_index.py", tz)
+    rc, out = run("match_calendar.py", tz)
+    check("a UTC timestamp is converted to local time, not silently shifted",
+          "UTC로 적힌 일정" in out and "시간 겹침" in out, out)
+
+    empty = tmp / "corpus_nocal"
+    build_corpus_v2(empty)
+    run("build_index.py", empty)
+    rc, out = run("match_calendar.py", empty)
+    check("no calendar cache → a clear instruction, not a crash",
+          rc != 0 and "_meta/calendar" in out, out)
+
 def test_validate_catches_errors(tmp):
     print("\n[2] validate — must catch integrity & honesty violations")
     root, bad = tmp / "corpus_v2", tmp / "corpus_bad"
@@ -596,6 +731,9 @@ def test_batch_pipeline(tmp):
           and reads["r-1"]["surface"].startswith("속도가 먼저다"), str(reads.get("r-1")))
     check("a reading held by a non-canonical speaker is dropped, not guessed",
           "r-junk" not in reads, str(list(reads)))
+    check("batch readings get a real meetings[].id, not a bare date",
+          reads["r-b00-1"].get("meeting") in {m["id"] for m in d["meetings"]}
+          and "mtg_source_id" not in reads["r-b00-1"], str(reads.get("r-b00-1")))
     check("readings that were already resolved are not double-counted",
           "+reading 1" in out and "resolved 1" in out, out)
     check("one-way tension merged into relations",
@@ -875,6 +1013,7 @@ def main():
         test_dossiers(tmp)
         test_readings(tmp)
         test_briefing(tmp)
+        test_calendar(tmp)
         test_validate_catches_errors(tmp)
         test_batch_pipeline(tmp)
         test_purge_person(tmp)

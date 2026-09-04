@@ -168,10 +168,18 @@ def main():
     # extraction agents (status 확인됨/빗나감 for an EXISTING id) update in place — that
     # re-check is what keeps the hit rate honest.
     by_id, orphan_reads = {r.get("id"): r for r in base.get("readings", [])}, []
+    # readings[].meeting must be a meetings[].id; the pool carries the transcript's
+    # source_id, so translate — otherwise the briefing falls back to date matching and
+    # two meetings on one day get mixed.
+    sid2mid = {m.get("source_id"): m.get("id") for m in base.get("meetings", [])
+               if m.get("source_id") and m.get("id")}
     for r in load("pool_readings.json"):
         rid = r.get("id")
         if not rid or not r.get("who"):
             continue
+        if not r.get("meeting") and r.get("mtg_source_id") in sid2mid:
+            r["meeting"] = sid2mid[r["mtg_source_id"]]
+        r.pop("mtg_source_id", None)
         old_r = by_id.get(rid)
         if old_r is None:
             if not (r.get("surface") and r.get("reading") and r.get("basis")):
@@ -183,7 +191,7 @@ def main():
             base.setdefault("readings", []).append(r)
             by_id[rid] = r
             added["reading"] += 1
-        elif r.get("status") in ("확인됨", "빗나감") and old_r.get("status") == "추정":
+        elif r.get("status") in ("확인됨", "빗나감") and old_r.get("status", "추정") == "추정":
             old_r["status"] = r["status"]
             old_r["resolution"] = r.get("resolution") or old_r.get("resolution") or {}
             added["resolved"] += 1

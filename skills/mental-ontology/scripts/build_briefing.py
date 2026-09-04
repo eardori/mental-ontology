@@ -13,6 +13,7 @@ the honest numbers are the product. The LLM may add prose on top, never new fact
 Usage
   python3 build_briefing.py <corpus> --meeting <source_id|path-substring>   # 회의 직후
   python3 build_briefing.py <corpus> --with "<이름>"                        # 만나기 전 30초
+  python3 build_briefing.py <corpus> --upcoming [YYYY-MM-DD]               # 내일 일정 기준
   python3 build_briefing.py <corpus> [--days 7]                            # 주간 다이제스트
   ... [--me "<내 이름>"] [--out FILE]
 
@@ -22,7 +23,7 @@ guess). Output is markdown on stdout; `--out` also writes it to a file.
 
 Deps: python3 stdlib only. Reads _ontology/ontology.db (+ _meta/speakers.json).
 """
-import argparse, json, os, re, sqlite3, sys
+import argparse, glob, json, os, re, sqlite3, sys
 from datetime import date, timedelta
 
 QUIET_DAYS = 45          # 이 기간 넘게 접촉 없으면 관계 신호로 올림
@@ -158,8 +159,11 @@ def brief_meeting(db, corpus, key, me):
     people = [r[0] for r in db.execute(
         "SELECT DISTINCT person FROM person_meetings WHERE meeting_rowid = ? ORDER BY person",
         (rid,)).fetchall() if r[0] and not GENERIC.match(r[0])]
+    setting = db.execute("SELECT setting FROM meetings WHERE rowid = ?", (rid,)).fetchone()
+    setting = setting[0] if setting else ""
     L = [f"# 회의 직후 브리핑 — {title}", "",
-         f"`{mdate}` · {cat or '분류 없음'} · {', '.join(people) or parts or ''}", ""]
+         f"`{mdate}` · {cat or '분류 없음'}" + (f" · {setting}" if setting else "")
+         + f" · {', '.join(people) or parts or ''}", ""]
 
     # 1) 내가 한 약속 / 내가 받은 약속 — 관계의 신뢰는 여기서 갈린다
     new_c = commitments_for(db, meeting_rowid=rid, only_open=False)
@@ -342,7 +346,10 @@ def brief_person(db, corpus, name, me, registry):
     # 3) 이 사람과 일하는 법 (objects.json playbook) + 충돌 축
     op = os.path.join(corpus, "_ontology", "objects.json")
     if os.path.exists(op):
-        d = json.load(open(op, encoding="utf-8"))
+        try:
+            d = json.load(open(op, encoding="utf-8"))
+        except json.JSONDecodeError:
+            d = {}          # mid-edit or truncated — degrade, do not crash a briefing
         person = next((p for p in d.get("people", []) if p.get("name") == name), {})
         if person.get("playbook"):
             L += ["## 이 사람과 일할 때", f"- {person['playbook']}", ""]
@@ -455,12 +462,76 @@ def brief_digest(db, corpus, days, me, registry):
     return L
 
 
+def brief_upcoming(db, corpus, when, me, registry):
+    """캐시된 캘린더에서 그날 일정을 읽어, 만날 사람마다 '지금 걸려 있는 것'을 붙인다."""
+    events = []
+    for p in sorted(glob.glob(os.path.join(corpus, "_meta", "calendar", "*.json"))):
+        try:
+            d = json.load(open(p, encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue
+        for e in d.get("events", []):
+            if str(e.get("start", ""))[:10] == when:
+                events.append(e)
+    events.sort(key=lambda e: str(e.get("start", "")))
+    L = [f"# 다가오는 일정 브리핑 — {when}", ""]
+    if not events:
+        return L + [f"`_meta/calendar/` 캐시에 {when} 일정이 없습니다 — "
+                    "스킬에 '캘린더 가져와줘'라고 하면 채워집니다."]
+    for e in events:
+        t = str(e.get("start", ""))[11:16]
+        L.append(f"## {t or '시간미상'} {e.get('title','(제목 없음)')}")
+        if e.get("location"):
+            L.append(f"장소: {e['location']}")
+        names = [a.get("name") or a.get("email", "") for a in (e.get("attendees") or [])]
+        known = []
+        for raw in [n for n in names if n]:
+            n = resolve_person(db, registry, raw)
+            if me and n == me:
+                continue
+            mt = db.execute("""SELECT MAX(m.date), COUNT(*) FROM person_meetings pm
+                               JOIN meetings m ON m.rowid = pm.meeting_rowid
+                               WHERE pm.person = ?""", (n,)).fetchone()
+            if not mt or not mt[0]:
+                # 이름 표기가 다를 뿐인 경우가 흔하다(캘린더 'Mina Kim' ↔ 코퍼스 'Mina').
+                # 단정하지 않고 후보만 제시한다 — 별칭은 사람이 확정해야 하는 조인 키다.
+                base = re.sub(r'[^\w가-힣]', '', raw).lower()
+                cand = [n for n in {e.get("name") for e in registry if e.get("name")}
+                        if n and (base in re.sub(r'[^\w가-힣]', '', n).lower()
+                                  or re.sub(r'[^\w가-힣]', '', n).lower() in base)]
+                hint = (f" · 혹시 **{cand[0]}**? 맞으면 speakers.json의 aliases에 "
+                        f"'{raw}' 를 추가하세요" if cand else "")
+                L.append(f"- **{raw}** — 코퍼스에 기록 없음 (첫 만남이거나 이름 표기 차이){hint}")
+                continue
+            owed = [c for c in commitments_for(db, person=n, only_open=True)
+                    if me and c[1] == me]
+            reads = open_readings(db, who=n)
+            gap = days_between(newest_date(db), mt[0])
+            bits = [f"마지막 `{mt[0]}`" + (f" ({gap}일 전)" if gap else ""), f"총 {mt[1]}회"]
+            if owed:
+                bits.append(f"⚡**내가 안 한 것 {len(owed)}건**")
+            if reads:
+                bits.append(f"확인할 추정 {len(reads)}건")
+            L.append(f"- **{n}** — " + " · ".join(bits))
+            for _d, frm, to, text, due, cdate, _t in owed[:2]:
+                L.append(f"    - ⚡ {text}" + (f" · 기한 `{due}`" if due else ""))
+            for r in reads[:2]:
+                L.append(f"    - ❓ {r['reading']} ({r['confidence']})")
+            known.append(n)
+        if known:
+            L.append(f"> 상세: `build_briefing.py <corpus> --with \"{known[0]}\"`")
+        L.append("")
+    return L
+
+
 def main():
     ap = argparse.ArgumentParser(description="놓친 것을 먼저 말해주는 브리핑 생성기")
     ap.add_argument("corpus")
     ap.add_argument("--meeting", help="회의 직후 브리핑 (source_id 또는 파일명 일부)")
     ap.add_argument("--with", dest="person", help="이 사람을 만나기 전 브리핑")
     ap.add_argument("--days", type=int, default=7, help="다이제스트 기간 (기본 7일)")
+    ap.add_argument("--upcoming", nargs="?", const="tomorrow", metavar="YYYY-MM-DD",
+                    help="캐시된 캘린더의 그날 일정 + 사람별 걸려 있는 것 (기본: 내일)")
     ap.add_argument("--me", help="내 정식 이름 (기본: 레지스트리 owner:true → 최다 참석자)")
     ap.add_argument("--out", help="마크다운을 파일로도 저장")
     a = ap.parse_args()
@@ -473,13 +544,20 @@ def main():
     have = {r[0] for r in db.execute(
         "SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
     missing = {"readings", "reading_basis", "commitments", "person_meetings"} - have
+    if not missing:   # tables can exist while a newer column does not
+        cols = {r[1] for r in db.execute("PRAGMA table_info(meetings)").fetchall()}
+        missing = {f"meetings.{c}" for c in ("setting", "start_time") if c not in cols}
     if missing:
-        sys.exit(f"ERROR: ontology.db가 오래된 스키마입니다 (없는 테이블: {sorted(missing)}) — "
+        sys.exit(f"ERROR: ontology.db가 오래된 스키마입니다 (없는 것: {sorted(missing)}) — "
                  f"python3 build_db.py {a.corpus} 를 먼저 실행하세요.")
     registry = load_registry(corpus)
     me, how = pick_owner(db, registry, a.me)
 
-    if a.meeting:
+    if a.upcoming:
+        when = (date.today() + timedelta(days=1)).isoformat() \
+            if a.upcoming == "tomorrow" else a.upcoming
+        L = brief_upcoming(db, corpus, when, me, registry)
+    elif a.meeting:
         L = brief_meeting(db, corpus, a.meeting, me)
     elif a.person:
         L = brief_person(db, corpus, a.person, me, registry)

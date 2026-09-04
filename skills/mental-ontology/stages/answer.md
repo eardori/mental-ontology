@@ -23,6 +23,10 @@ the DB + transcripts, per **`assets/PLAYBOOK.md` Part 1**. Core discipline:
   공유 공리 → 개인 맥락 with △/⛔ → 최근 접촉). Add prose and transcript nuance on top of
   it; never replace its facts with your own recollection. Same script covers "지난주 뭐
   놓쳤지?" (`--days 7`) and "어제 회의 정리해줘" (`--meeting <source_id>`).
+- **"내일 뭐 있지 / 내일 일정 브리핑"** → `build_briefing.py <corpus> --upcoming`
+  (캐시된 캘린더 기준; 하루치 일정마다 만날 사람의 미이행 약속·미확인 추정·마지막 접촉을
+  붙여준다). 캐시가 없거나 오래됐으면 Stage 1b로 캘린더를 먼저 받아 캐시한다. 캘린더에만
+  있고 코퍼스에 없는 이름은 **별칭 후보로만** 제시된다 — 사람이 확정해야 하는 조인 키다.
 - **Freshness**: a model whose `last_seen` is 6+ months behind the newest meeting
   (validate.py flags these as STALE) is answered in past tense — "당시에는 ~라고
   봤습니다 (이후 확인 없음)" — never as their current view. People change.

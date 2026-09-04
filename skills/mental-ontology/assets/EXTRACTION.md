@@ -48,6 +48,23 @@ perfectly quoted — skip them, or if the sentiment recurs seriously, extract wi
 `mid` and note the tonal uncertainty. STT has no tone channel; when the surrounding
 context reads like banter, believe the context.
 
+**The setting is part of the evidence.** When a transcript's frontmatter carries
+`setting:` (derived from the calendar by `match_calendar.py` — 시간대·장소·참석 구성·정기
+여부), read the words through it. STT has no tone channel, but it does now have a
+*venue* channel:
+
+| setting | 무엇을 조심할 것 |
+|---|---|
+| 식사자리 · 저녁 · 야간 | 과장·농담·립서비스가 섞인다. 그 자리에서만 나온 말은 `mid` 상한. 다른 자리에서 반복돼야 `high`. |
+| 외부-투자IR · 외부-고객영업 | **연출된 발언**이다 — 상대에게 맞춘 말과 본인의 신념을 구분하라. IR 자리에서만 관찰된 신념은 `mid` 상한이고, `about`이 상대 조직이면 이미 `mid` 캡이 걸린다. |
+| 정기 내부 회의 | 실무 발언. 같은 신념이 여러 회차에 걸쳐 나오면 `high`로 올라갈 좋은 근거. |
+| 1on1 | 솔직한 발언이 나오는 자리지만, 상대에 맞춘 말일 수도 있다. holder는 언제나 말한 사람. |
+| 화상 | 발언 겹침·끊김이 많아 STT 품질이 낮다. 인용문을 특히 엄격히 접지시킬 것. |
+
+readings에도 같은 문법이 적용된다 — 식사 자리의 `마무리발언`은 진짜 용건일 확률이
+특히 높고(문 앞에서 나오는 부탁), IR 자리의 `양보조건`은 협상 포지션일 수 있다.
+setting이 없는 회의록에는 이 보정을 적용하지 말 것 — 없는 맥락을 지어내지 않는다.
+
 **Contradiction beats repetition.** If a later meeting contradicts a model, do not
 keep it `high`: downgrade it, or move the shift into `evolution`/`timeline` (the
 change IS the signal). `last_seen` must reflect the last *confirming* evidence —

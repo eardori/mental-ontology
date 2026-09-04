@@ -101,6 +101,13 @@ Plaud MCP / audio → transcripts/*.md (frontmatter + 요약 + 액션아이템 +
   (what was said) beside `reading` (what was inferred). Every reading starts `추정` and is
   resolved by a later meeting into `확인됨`/`빗나감`, which is what lets validate.py and
   build_db.py print a **hit rate** — the layer has to be able to say how often it was wrong.
+- **Calendar data enters through a cache, never live.** Scripts cannot call MCP tools, so
+  the skill fetches events and writes `_meta/calendar/<YYYY-MM>.json`; `match_calendar.py`
+  reads only that. This is what makes matching deterministic, re-runnable and testable. The
+  match writes `setting` (TPO) and `calendar_event` into transcript frontmatter, fills only
+  empty/auto-generated fields (a human-set title or category is reported, never overwritten),
+  and flows into `meetings.setting` in the DB and into the evidence-grading rules in
+  `EXTRACTION.md` — a belief voiced only over dinner or only in an IR meeting caps at `mid`.
 - **The briefing is the only push surface, and it is deliberately dumb.**
   `build_briefing.py` computes everything it prints from `ontology.db` — open commitments,
   open readings and their basis signals, contact gaps, turn/character/question counts — so a

@@ -23,6 +23,39 @@
    - **Empty array `[]` = no transcript exists** → Stage 2 (Whisper) if duration ≥ 20 min; otherwise mark as junk.
 5. Also call `get_note(file_id)` for the AI summary/topics (nice input for Stage 4 summary; proceed fine if it fails).
 
+### Stage 1b — 캘린더에서 그 자리가 뭐였는지 가져오기 (있으면 반드시)
+
+녹음은 "언제 몇 분"만 안다. 캘린더는 **무슨 자리였는지**를 안다 — 제목·참석자 명단·
+장소·정기 여부. 셋 다 이 파이프라인이 추론으로 때우던 값이고, 그중 **참석자 명단은
+Stage 3 화자 추정의 정답지**다.
+
+1. 캘린더 MCP가 있는지 확인 (`ToolSearch` → `list_events` / `list_calendars`). 없으면
+   이 단계를 조용히 건너뛴다 — 캘린더는 선택이고, 없다고 파이프라인이 막히지 않는다.
+2. 첫 사용 시 한 번만 묻는다: 어떤 캘린더인지(여러 개면 `list_calendars`로 고르게),
+   그리고 **내 이메일 도메인**(내부/외부 구분 기준). 답을 `~/.mental-ontology.json`에
+   `calendar_id` / `owner_domain`으로 저장.
+3. 동기화 구간의 일정을 받아 **월별 캐시로 저장**한다 —
+   `<corpus>/_meta/calendar/<YYYY-MM>.json`:
+   ```json
+   {"fetched": "YYYY-MM-DD", "range": ["YYYY-MM-01", "YYYY-MM-31"],
+    "owner_domain": "example.com",
+    "events": [{"id": "", "title": "", "start": "YYYY-MM-DDTHH:MM", "end": "YYYY-MM-DDTHH:MM",
+                "location": "", "description": "", "recurring": false,
+                "attendees": [{"name": "", "email": "", "self": false}]}]}
+   ```
+   캐시로 두는 이유: 재실행이 같은 결과를 내야 하고(매칭은 결정적이어야 한다), 매번
+   캘린더를 다시 읽지 않기 위해서다. **캘린더 원문을 코퍼스 밖으로 내보내지 않는다.**
+   description은 회의 링크·아젠다만 남기고 길면 잘라서 저장한다(민감 정보 유입 방지).
+4. 매칭은 **Stage 5에서** 돈다 — `build_index.py`가 만든 `_index/catalog.json`을 읽기
+   때문에 그 전에 실행하면 새 녹음을 못 찾는다. Stage 5의 명령 블록을 그대로 따를 것:
+   ```bash
+   python3 <skill_dir>/scripts/match_calendar.py <corpus>            # 리포트
+   python3 <skill_dir>/scripts/match_calendar.py <corpus> --apply    # 확정 건 반영
+   ```
+   시작 시각 겹침으로 매칭하고, `setting`(TPO)·`calendar_event`를 프론트매터에 붙이며,
+   **비어 있거나 자동 생성된 값만** 채운다(사람이 정한 제목·분류는 절대 덮어쓰지 않고
+   리포트에만 남긴다). `?` 표시된 건은 사람이 판단한다 — 억지로 확정하지 말 것.
+
 ## Stage 2 — Whisper transcription (raw audio)
 
 Only for recordings with no Plaud transcript.
@@ -90,6 +123,9 @@ Goal: replace "Speaker 1/2" and misattributed labels with real names, learning o
    - `first_met_context` ("스타트업얼라이언스 행사에서"), `intro_by` (who introduced them) — capture when the transcript or the user reveals it; this is네트워커의 핵심 자산.
    - `personal[]`: dated personal-context notes (`{"date","note"}`) — see the privacy policy below for when to record these.
 2. For each distinct speaker label in the transcript, infer candidates from:
+   - **the calendar attendee list, when the meeting matched one (Stage 1b) — this is
+     ground truth, not a guess.** 2인 일정에서 화자가 2명이면 매핑은 사실상 결정된다;
+     참석자 명단은 AskUserQuestion의 선택지가 되고, 명단에 없는 이름을 지어내지 않는다,
    - explicit self-introductions and how people address each other in the text,
    - the meeting title/participants context,
    - known profiles (matching role/org/topic patterns and speech traits).
@@ -151,6 +187,9 @@ Goal: replace "Speaker 1/2" and misattributed labels with real names, learning o
    participants: [<confirmed names/orgs>]
    source_id: <plaud file id>
    duration_min: <n>
+   start_time: "HH:MM"   # 녹음 시작 시각 — 캘린더 매칭 키. Plaud 파일 메타에 있으면 반드시 기록
+   setting: ""           # TPO — match_calendar.py가 채움 (직접 쓰지 말 것)
+   calendar_event: ""    # 매칭된 일정 id (출처)
    transcribed_by: plaud | whisper
    part: "1/2" # only when split
    ---
@@ -186,11 +225,17 @@ Goal: replace "Speaker 1/2" and misattributed labels with real names, learning o
 Run after every batch of new files (all three are cheap local scripts):
 
 ```bash
-python3 <skill_dir>/scripts/build_index.py <corpus_path>      # catalog + INDEX.md
+python3 <skill_dir>/scripts/build_index.py <corpus_path>      # catalog (매칭의 입력)
+python3 <skill_dir>/scripts/match_calendar.py <corpus_path> --apply   # 캘린더 있을 때만
+python3 <skill_dir>/scripts/build_index.py <corpus_path>      # 바뀐 프론트매터 반영
 python3 <skill_dir>/scripts/build_db.py <corpus_path>         # DB incl. person_meetings
 python3 <skill_dir>/scripts/build_dossiers.py <corpus_path>   # people/ dossiers + INDEX
 python3 <skill_dir>/scripts/build_briefing.py <corpus_path> --meeting <source_id>
 ```
+
+순서가 곧 의존성이다: `match_calendar.py`는 `_index/catalog.json`을 읽고 프론트매터를
+고치므로, **앞뒤로 `build_index.py`가 한 번씩** 필요하다(카탈로그를 만들고, 바뀐
+`setting`·참석자를 다시 읽어들이기 위해). 캘린더가 없으면 2·3번째 줄은 건너뛴다.
 
 **Show the briefing — this is the payoff of the sync, not an optional extra.** The user
 cannot ask about what they did not notice, so the last step of every sync PUSHES it:

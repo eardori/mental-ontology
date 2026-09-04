@@ -12,6 +12,7 @@ description: >
   "멘탈모델 온톨로지 만들어줘", "새 미팅 코퍼스에 추가해줘", "온톨로지에 물어봐줘",
   "X는 어떻게 생각해?", "이 사람에게 맡겨도 될까", "미팅 준비해줘", "회의 데이터로 사업 아이디어",
   "저 사람이 원한 게 뭐야", "내가 놓친 거 있어", "이 목소리 누구야",
+  "내일 일정 브리핑해줘", "캘린더랑 연결해줘",
   "전략 짜줘", "process my Plaud recordings", "build a mental model ontology",
   "query the ontology", "find opportunities in my meetings", "strategy from my meeting data".
 ---
@@ -25,7 +26,7 @@ summary alone** (details, formats, and guardrails live in the stage files):
 | Stage | What | Trigger examples | Read first |
 |---|---|---|---|
 | 0 | Setup & config | first run, "설치 확인" | `stages/ingest.md` |
-| 1–2 | Fetch from Plaud · Whisper | "녹음 가져와줘", "동기화" | `stages/ingest.md` |
+| 1–2 | Fetch from Plaud · **캘린더 매칭** · Whisper | "녹음 가져와줘", "동기화", "캘린더 연결해줘" | `stages/ingest.md` |
 | 3 | Speaker attribution (+voiceprint, backfill, 조직도) | auto; "화자 정리해줘", "이 목소리 누구야", "조직도 입력해줘" | `stages/ingest.md` |
 | 4–5 | Clean & save · Index & refresh · **놓친 것 브리핑** | auto after fetch | `stages/ingest.md` |
 | 6–7 | Ontology analysis · Database (+batch pipeline) | "온톨로지 분석해줘", "회의 N개 반영해줘" | `stages/ontology.md` |
@@ -89,4 +90,5 @@ Stage details: `stages/ingest.md` (0–5) · `stages/ontology.md` (6–7 + batch
   `prepare_synthesis` + `merge_ontology` (batch pipeline) · `migrate_objects` (v1→v2) ·
   `purge_person` (right-to-be-forgotten) · `whisper_transcribe` ·
   `diarize` + `recluster` + `voiceprint` + `merge_diar` (audio → who said what) ·
-  `build_briefing` (놓친 것 브리핑 — 회의 직후 / 만나기 전 / 주간)
+  `build_briefing` (놓친 것 브리핑 — 회의 직후 / 만나기 전 / 내일 일정 / 주간) ·
+  `match_calendar` (녹음 ↔ 캘린더 일정 매칭, TPO·참석자 정답지)

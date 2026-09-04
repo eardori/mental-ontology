@@ -19,6 +19,8 @@ Plain markdown — works standalone or inside an Obsidian vault.
 │   │                             #   tier/first_met_context/intro_by/personal[] power dossiers
 │   ├── voiceprints.json          # VOICE IDENTITY (Stage 2b/3) — per-person voice centroids;
 │   │                             #   biometric, local only, purged by purge_person.py
+│   ├── calendar/                 # 캘린더 캐시 (Stage 1b) — 월별 일정, 매칭의 입력
+│   │   └── <YYYY-MM>.json        #   {fetched, range, owner_domain, events[]}
 │   ├── state.json                # {"last_synced": "YYYY-MM-DD"}
 │   └── deletion-candidates.md    # junk recordings to delete in the Plaud app
 ├── _whisper/                     # local transcription workspace
@@ -84,6 +86,11 @@ Plain markdown — works standalone or inside an Obsidian vault.
   earns its own. `dur` is how much speech backs it, so an old sighting never outweighs a
   well-heard one. It is derived-but-not-rebuildable data (the source audio is usually gone):
   back it up with the corpus, and never hand-edit `vec`.
+- **`_meta/calendar/` = 그 자리가 무슨 자리였는지.** 스킬이 캘린더 MCP로 받아 캐시하고
+  (`match_calendar.py`는 이 캐시만 읽는다 — 스크립트는 MCP를 호출할 수 없고, 캐시여야
+  재실행이 같은 답을 낸다), 매칭 결과가 회의록 프론트매터의 `setting`(TPO)·
+  `calendar_event`로 들어간다. 참석자 명단은 Stage 3 화자 추정의 정답지다.
+  일정 본문에 민감 정보가 섞이기 쉬우니 `description`은 아젠다·링크만 짧게 남긴다.
 - **Privacy**: the corpus is sensitive. Keep local; if it lives near a git repo, gitignore it.
   Recommended location: a dedicated folder or the user's Obsidian vault (iCloud-synced, off-repo).
   `voiceprints.json` is **biometric data** — the most sensitive file in the corpus.

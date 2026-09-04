@@ -18,7 +18,8 @@ Tables
   reading_basis(reading_id, kind, detail, quote)   -- the signal that justifies a reading
   traps(who, model_id, desc, state, ...)          -- the shadow each model casts
   conflict_axes(a, b, axis, shared_axiom, ...)    -- shared axiom + symmetric split
-  meetings(source_id, date, title, category, duration_min, transcribed_by, path, participants)
+  meetings(source_id, date, title, category, duration_min, transcribed_by, path,
+           participants, start_time, setting)   -- setting = TPO from the calendar
   utterances(meeting_rowid, speaker, speaker_raw, ts, text)
       -- speaker = canonical name when resolvable via person_aliases, else raw label
   utterances_fts  -- FTS5 over utterances (speaker = canonical), if available
@@ -28,6 +29,30 @@ never fails silently. No external dependencies (python3 stdlib only).
 """
 import os, sys, json, re, glob, sqlite3, unicodedata
 from collections import Counter, defaultdict
+
+def split_list(v):
+    """Split a YAML-ish inline list, respecting quotes: ["a", "Kim, Mina"] → 2 items.
+
+    Naive comma splitting turns one attendee named "Kim, Mina" into two people, who
+    then get their own person_meetings rows and dossiers.
+    """
+    out, cur, q = [], "", None
+    for ch in v:
+        if q:
+            if ch == q:
+                q = None
+            else:
+                cur += ch
+        elif ch in "\"'":
+            q = ch
+        elif ch == ",":
+            out.append(cur.strip())
+            cur = ""
+        else:
+            cur += ch
+    out.append(cur.strip())
+    return [x for x in out if x]
+
 
 def parse_fm(text):
     m = re.match(r'^---\s*\n(.*?)\n---\s*\n', text, re.S)
@@ -40,7 +65,7 @@ def parse_fm(text):
             continue
         k, v = mm.group(1), mm.group(2).strip().strip('"')
         if v.startswith('[') and v.endswith(']'):
-            v = [x.strip().strip('"') for x in v[1:-1].split(',') if x.strip()]
+            v = split_list(v[1:-1])
         fm[k] = v
     return fm, text[m.end():]
 
@@ -182,7 +207,8 @@ def main():
     CREATE TABLE commitments(meeting_rowid INTEGER, done INTEGER, from_person TEXT,
                              to_person TEXT, text TEXT, due TEXT);
     CREATE TABLE meetings(source_id TEXT, date TEXT, title TEXT, category TEXT,
-                          duration_min INTEGER, transcribed_by TEXT, path TEXT, participants TEXT);
+                          duration_min INTEGER, transcribed_by TEXT, path TEXT, participants TEXT,
+                          start_time TEXT, setting TEXT);
     CREATE TABLE utterances(meeting_rowid INTEGER, speaker TEXT, speaker_raw TEXT, ts TEXT, text TEXT);
     CREATE INDEX idx_utt_meeting ON utterances(meeting_rowid);
     CREATE INDEX idx_utt_speaker ON utterances(speaker);
@@ -308,12 +334,13 @@ def main():
             print(f"WARN: unreadable transcript skipped: {os.path.relpath(p, corpus)} ({ex})")
             continue
         parts = fm.get("participants", [])
-        c.execute("INSERT INTO meetings VALUES(?,?,?,?,?,?,?,?)",
+        c.execute("INSERT INTO meetings VALUES(?,?,?,?,?,?,?,?,?,?)",
                   (fm.get("source_id", ""), str(fm.get("date", "")), fm.get("title", ""),
                    fm.get("category", ""),
                    int(fm["duration_min"]) if str(fm.get("duration_min", "")).isdigit() else None,
                    fm.get("transcribed_by", ""), os.path.relpath(p, corpus),
-                   ", ".join(parts) if isinstance(parts, list) else str(parts)))
+                   ", ".join(parts) if isinstance(parts, list) else str(parts),
+                   str(fm.get("start_time", "")), str(fm.get("setting", ""))))
         mid = c.lastrowid
         if fm.get("source_id"):
             # split recordings (_part1/_part2) legitimately share a source_id
