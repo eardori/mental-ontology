@@ -1,10 +1,14 @@
 # INSTALL — Claude가 직접 실행하는 설치 가이드 / Self-install guide for Claude
 
-> **사용자님께**: Claude Code에서 이렇게 말하면 끝입니다 —
-> **"https://github.com/eardori/mental-ontology 클론해서 INSTALL.md 따라 설치해줘"**
+> **가장 빠른 길 / Fastest path** — 터미널에 두 줄:
 >
-> **To the user**: In Claude Code, just say —
-> **"Clone https://github.com/eardori/mental-ontology and follow INSTALL.md to install it."**
+> ```bash
+> claude plugin marketplace add eardori/mental-ontology
+> claude plugin install mental-ontology@eardori
+> ```
+>
+> 아래 가이드는 Plaud·Whisper·캘린더까지 포함한 전체 설치입니다. Claude Code에게
+> **"INSTALL.md 따라 설치해줘"** 라고 시키면 순서대로 진행합니다.
 
 ---
 
@@ -31,6 +35,18 @@ git clone https://github.com/eardori/mental-ontology.git /tmp/mental-ontology-in
 
 ### 2. Install the skill / 스킬 설치
 
+**방법 A — 플러그인 (권장, 클론 불필요)**
+
+```bash
+claude plugin marketplace add eardori/mental-ontology
+claude plugin install mental-ontology@eardori
+claude plugin details mental-ontology@eardori   # Skills (1) mental-ontology 확인
+```
+
+이후 업데이트는 `claude plugin update mental-ontology@eardori` 한 줄. 1단계(클론)도 필요 없다.
+
+**방법 B — 수동 복사 (포크해서 고쳐 쓰는 경우)**
+
 ```bash
 mkdir -p ~/.claude/skills
 cp -R <repo>/skills/mental-ontology ~/.claude/skills/mental-ontology
@@ -38,6 +54,9 @@ ls ~/.claude/skills/mental-ontology   # SKILL.md, stages/, assets/, scripts/ 확
 ```
 
 이미 존재하면 사용자에게 덮어쓸지 확인 후 진행. / If it already exists, ask the user before overwriting.
+
+> ⚠️ **둘 다 하지 말 것.** 플러그인과 `~/.claude/skills/` 복사본이 함께 있으면 같은 스킬이
+> 두 번 로드된다. 방법 A로 옮길 때는 `rm -rf ~/.claude/skills/mental-ontology` 를 먼저.
 
 ### 3. Register the Plaud MCP server / Plaud MCP 등록
 
@@ -124,7 +143,8 @@ Once the ontology exists you can query it directly (the DB is built automaticall
 ## Uninstall / 제거
 
 ```bash
-rm -rf ~/.claude/skills/mental-ontology
+claude plugin uninstall mental-ontology@eardori   # 플러그인으로 설치한 경우
+rm -rf ~/.claude/skills/mental-ontology           # 수동 복사한 경우
 claude mcp remove plaud -s user
 rm ~/.mental-ontology.json          # config (선택)
 # corpus 폴더는 사용자 데이터 — 직접 판단해 보관/삭제
@@ -133,7 +153,13 @@ rm ~/.mental-ontology.json          # config (선택)
 
 ## Upgrade / 업그레이드
 
-스킬은 복사본이라 리포를 당겨받은 뒤 다시 복사해야 반영된다:
+**플러그인으로 설치했다면** 한 줄이다:
+
+```bash
+claude plugin update mental-ontology@eardori
+```
+
+**수동 복사로 설치했다면** 리포를 당겨받은 뒤 다시 복사해야 반영된다:
 
 ```bash
 git -C <repo> pull

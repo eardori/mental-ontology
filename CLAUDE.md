@@ -20,8 +20,14 @@ Two consequences that shape every change here:
    Obsidian vault. It is private and must never land in this repo. All examples and tests use
    the fictional "Acme" cast (정우진 / 이서연 / 박도현 …); keep it that way.
 
-Changes reach a user only after they re-copy the skill directory — there is no update channel
-(`INSTALL.md` documents the upgrade path). User-visible changes belong in `CHANGELOG.md`:
+The repo is also a **Claude Code plugin and its own marketplace** (`.claude-plugin/plugin.json`
++ `marketplace.json`, plugin source `"./"` — so `skills/` must stay at the repo root). Users
+install with `claude plugin marketplace add eardori/mental-ontology` and update with
+`claude plugin update`; the plugin is **copied** into `~/.claude/plugins/cache/<marketplace>/
+<plugin>/<version>/`, so bump `version` in BOTH manifests when shipping a change or clients
+keep the cached copy. Editing this repo never affects an installed copy — develop against
+`tests/run_tests.py`, not the cache. `INSTALL.md` also documents the manual
+`cp -R` path for forks (never run both — the skill would load twice). User-visible changes belong in `CHANGELOG.md`:
 the repo versions itself there (currently 2.0.0), and a reader landing on the repo uses it
 plus the README's "30초 요약" to understand what this is.
 

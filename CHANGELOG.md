@@ -50,6 +50,12 @@ v1.x는 **묻는 도구**였습니다: 데이터를 쌓아두고, 물으면 답�
   - 비어 있거나 자동 생성된 값만 채움 — 사람이 정한 제목·분류는 절대 덮어쓰지 않음
 - `_meta/speakers.json`에 `owner: true` — 코퍼스 주인이 누구인지. "내가 한 약속"과
   "상대가 한 약속"을 가르는 기준(없으면 최다 참석자로 추정하고 추정이라고 밝힘)
+- **Claude Code 플러그인으로 배포** (`.claude-plugin/`) — 이 리포가 자기 자신의 마켓플레이스다.
+  클론·복사 없이 두 줄로 설치되고, `claude plugin update`로 갱신된다:
+  ```bash
+  claude plugin marketplace add eardori/mental-ontology
+  claude plugin install mental-ontology@eardori
+  ```
 - `CLAUDE.md` — 이 리포에서 작업하는 에이전트를 위한 구조·명령·파생 체인·함정 문서
 - 테스트 78개 → **183개**
 

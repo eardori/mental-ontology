@@ -10,9 +10,8 @@
 
 ## 30초 요약 / What this is
 
-**이건 앱이 아니라 [Claude Code](https://claude.com/claude-code) 스킬 하나입니다.**
-`skills/mental-ontology/`를 `~/.claude/skills/`에 복사하면, Claude Code에게 한국어(또는 영어)로
-말하는 것만으로 아래가 돌아갑니다. 서버도, 계정도, 외부 전송도 없습니다 — **전부 내 컴퓨터 안**.
+**이건 앱이 아니라 [Claude Code](https://claude.com/claude-code) 플러그인(스킬) 하나입니다.**
+설치하고 나면 Claude Code에게 한국어(또는 영어)로 말하는 것만으로 아래가 돌아갑니다. 서버도, 계정도, 외부 전송도 없습니다 — **전부 내 컴퓨터 안**.
 
 ```
 🎙 녹음(Plaud/오디오) → 전사 → 화자 식별(목소리 지문·캘린더) → 회의록 코퍼스(마크다운)
@@ -72,14 +71,18 @@
 
 ## 🚀 설치 (2분) / Install
 
-**Claude Code에게 이 한 줄만 말하세요 / Just tell Claude Code:**
+**터미널에 두 줄 — 클론도 복사도 필요 없습니다:**
 
-> "https://github.com/eardori/mental-ontology 클론해서 INSTALL.md 따라 설치해줘"
->
-> "Clone https://github.com/eardori/mental-ontology and follow INSTALL.md to install it."
+```bash
+claude plugin marketplace add eardori/mental-ontology
+claude plugin install mental-ontology@eardori
+```
 
-Claude가 스킬 복사 → Plaud MCP 등록까지 자동 수행. 재시작 후 **"Plaud 로그인해줘"** 한 번이면 끝.
-(요구사항: [Claude Code](https://claude.com/claude-code) · Node 20+ · [Plaud](https://www.plaud.ai) 계정 / Requires Claude Code, Node 20+, a Plaud account)
+업데이트는 `claude plugin update mental-ontology@eardori`.
+
+녹음기(Plaud) 연동·로컬 전사(Whisper)·캘린더까지 한 번에 붙이려면 Claude Code에게
+**"INSTALL.md 따라 설치해줘"** 라고 말하세요 — 선택 항목까지 순서대로 안내합니다.
+(요구사항: [Claude Code](https://claude.com/claude-code) · Python 3 · 선택: Node 20+와 [Plaud](https://www.plaud.ai) 계정)
 
 ## 🏁 3분 퀵스타트 / Quickstart
 
