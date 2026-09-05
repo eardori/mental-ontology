@@ -399,6 +399,107 @@ def main():
     else:
         infos.append("ontology.db not found — run build_db.py (Stage 7) for query mode")
 
+    # --- lexicon (용어 사전) + web enrichment ---
+    # The dictionary rewrites transcripts, so its failure mode is destroying real content:
+    # a "misspelling" that is actually another term, or a person's name. Those are ERRORs.
+    lex_path = os.path.join(corpus, "_meta", "lexicon.json")
+    reg_names = set()
+    reg = {}
+    rp = os.path.join(corpus, "_meta", "speakers.json")
+    if os.path.exists(rp):
+        try:
+            for e in json.load(open(rp, encoding="utf-8")):
+                nm = (e.get("name") or "").strip()
+                if nm:
+                    reg[nm] = e
+                    reg_names |= {nm, *(a.strip() for a in e.get("aliases") or [])}
+                    mm = re.match(r'^(.+?)\s*\((.+?)\)$', nm)
+                    if mm:
+                        reg_names |= {mm.group(1).strip(), mm.group(2).strip()}
+        except Exception as ex:
+            warns.append(f"_meta/speakers.json unreadable for lexicon checks: {ex}")
+    if os.path.exists(lex_path):
+        try:
+            lex = json.load(open(lex_path, encoding="utf-8"))
+        except Exception as ex:
+            errors.append(f"_meta/lexicon.json does not parse: {ex}")
+            lex = {"terms": []}
+        terms = lex.get("terms", [])
+        canon = {}
+        for e in terms:
+            for k in [e.get("term", "")] + list(e.get("aliases") or []):
+                if k:
+                    canon[k.strip()] = e.get("term", "")
+        n_auto = 0
+        dupes = {t for t in (x.get("term") for x in terms)
+                 if t and sum(1 for y in terms if y.get("term") == t) > 1}
+        if dupes:
+            errors.append(f"lexicon: duplicate terms (one entry wins in the DB): "
+                          + ", ".join(sorted(dupes)))
+        for e in terms:
+            t = (e.get("term") or "").strip()
+            if not t:
+                errors.append("lexicon: an entry has no `term`")
+                continue
+            if e.get("status") not in (None, "", "확정", "추론", "후보"):
+                errors.append(f"lexicon[{t}]: status '{e.get('status')}' not in 확정/추론/후보")
+            for m in e.get("misspellings") or []:
+                form = (m.get("form") or "").strip()
+                st = m.get("status", "후보")
+                if st in ("확정", "추론"):
+                    n_auto += 1
+                if not form:
+                    errors.append(f"lexicon[{t}]: a misspelling entry has no `form`")
+                elif form == t:
+                    errors.append(f"lexicon[{t}]: '{form}' is the term itself")
+                elif form in canon and canon[form] != t:
+                    errors.append(f"lexicon[{t}]: '{form}' is ALSO the term/alias "
+                                  f"'{canon[form]}' — correcting it would destroy real text")
+                elif form in reg_names and st in ("확정", "추론"):
+                    errors.append(f"lexicon[{t}]: '{form}' is a registered person "
+                                  "— fix names with speakers.json aliases, not by rewriting")
+        infos.append(f"lexicon: {len(terms)} terms, {n_auto} auto-appliable misspelling pairs")
+        log_path = os.path.join(corpus, "_meta", "lexicon-corrections.jsonl")
+        if os.path.exists(log_path):
+            batches = set()
+            for line in open(log_path, encoding="utf-8"):
+                try:
+                    r = json.loads(line)
+                except Exception:
+                    continue
+                if r.get("cmd") in ("apply", "patch"):
+                    batches.add(r.get("batch"))
+            missing = [b for b in batches if not os.path.isdir(
+                os.path.join(corpus, "_ontology", "_work", f"lexicon-backup-{b}"))]
+            infos.append(f"corrections: {len(batches)} batches logged"
+                         + (f", {len(missing)} without a backup (not revertable)" if missing else ""))
+    enr_path = os.path.join(corpus, "_meta", "enrichment.json")
+    if os.path.exists(enr_path):
+        try:
+            enr = json.load(open(enr_path, encoding="utf-8"))
+        except Exception as ex:
+            errors.append(f"_meta/enrichment.json does not parse: {ex}")
+            enr = {"entities": {}}
+        n_fact = 0
+        for name, e in (enr.get("entities") or {}).items():
+            facts = e.get("facts") or []
+            n_fact += len(facts)
+            for f in facts:
+                if not (f.get("url") or "").strip():
+                    errors.append(f"enrichment[{name}]: a fact has no source URL "
+                                  "(a web claim without a URL is indistinguishable from a guess)")
+            if e.get("status") == "확인됨" and not facts:
+                warns.append(f"enrichment[{name}]: status 확인됨 but no facts with URLs")
+            if e.get("kind") == "인물":
+                r = reg.get(name, {})
+                if r.get("public") is not True and (r.get("relationship") or "") in \
+                        {"팀원", "가족", "지인", "친구", "동료"}:
+                    warns.append(f"enrichment[{name}]: 사적 관계"
+                                 f"({r.get('relationship')})인 사람이 웹 검색 캐시에 있습니다 "
+                                 "— 의도한 것이 아니면 `enrich.py forget --entity` 로 지우세요")
+        infos.append(f"web enrichment: {len(enr.get('entities') or {})} entities, "
+                     f"{n_fact} sourced facts (외부 출처 — 근거 등급을 올리지 않음)")
+
     # --- report ---
     for e in errors:
         print(f"ERROR: {e}")

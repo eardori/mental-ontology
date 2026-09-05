@@ -1089,6 +1089,193 @@ def test_voiceprint(tmp):
     check("--labels without a value fails with a usable message",
           rc != 0 and "labels.json" in out4, out4)
 
+
+def test_lexicon(tmp):
+    print("\n[11] lexicon — 용어 사전, 오타 교정, 되돌리기")
+    root = tmp / "corpus_lex"
+    build_corpus_v2(root)
+    # a term said many times, and the same term mis-heard once in a later meeting
+    make_transcript(root, "2026-06-01_커넥티비티.md", "커넥티비티 논의", "2026-06-01",
+        "acme-0601", "\n".join(
+            f"**[정우진] (00:0{i})** 커넥티비티가 핵심이다. 넥스트라와 커넥티비티를 늘리자."
+            for i in range(1, 6)))
+    make_transcript(root, "2026-06-02_오타.md", "오타 회의", "2026-06-02", "acme-0602",
+        "**[정우진] (00:01)** 커텍티비티가 문제다. 이서면 님은 어떻게 보세요?\n"
+        "**[이서연] (00:05)** 그거 다음 주까지 정리할게요.\n"
+        "\n## 액션아이템\n- [ ] (이서연→정우진) 그 건 정리해서 공유 (기한: 2026-06-09)")
+
+    rc, out = run("lexicon.py", root, "mine")
+    check("mine exits 0 and separates 추론 from 후보", rc == 0
+          and "커텍티비티 → 커넥티비티" in out and "자동 적용 대상(추론)" in out, out)
+    check("mine flags a misheard PERSON name separately, not as a text fix",
+          "인물 이름 오인식" in out and "이서면" in out, out)
+    check("mine reports deictics left in action items", "지시어가 남은 액션아이템" in out, out)
+    check("mine without --apply writes no lexicon",
+          not (root / "_meta" / "lexicon.json").exists(), "")
+
+    rc, out = run("lexicon.py", root, "mine", "--apply")
+    lex = json.loads((root / "_meta" / "lexicon.json").read_text(encoding="utf-8"))
+    forms = {m["form"]: m["status"] for t in lex["terms"] for m in t.get("misspellings", [])}
+    check("mine --apply learns only the 추론 tier", forms.get("커텍티비티") == "추론"
+          and "이서면" not in forms, json.dumps(forms, ensure_ascii=False))
+
+    rc, out = run("lexicon.py", root, "apply")
+    typo_file = root / "transcripts" / "2026" / "2026-06" / "2026-06-02_오타.md"
+    check("apply dry-run reports but does not write", rc == 0 and "dry run" in out
+          and "커텍티비티" in typo_file.read_text(encoding="utf-8"), out)
+    rc, out = run("lexicon.py", root, "apply", "--apply")
+    body = typo_file.read_text(encoding="utf-8")
+    check("apply --apply corrects the transcript", rc == 0 and "커텍티비티" not in body
+          and "커넥티비티가 문제다" in body, body[:300])
+    check("apply names its backup batch and the rebuild chain",
+          "lexicon-backup-" in out and "build_db.py" in out, out)
+    batch = re.search(r"batch (\d{8}-\d{6})", out).group(1)
+    check("backup holds the pre-correction original",
+          "커텍티비티" in (root / "_ontology" / "_work" / f"lexicon-backup-{batch}"
+                        / "transcripts" / "2026" / "2026-06" / "2026-06-02_오타.md")
+          .read_text(encoding="utf-8"), "")
+    log = [json.loads(l) for l in
+           (root / "_meta" / "lexicon-corrections.jsonl").read_text(encoding="utf-8").splitlines()]
+    check("every replacement is logged with its grounds",
+          any(r["from"] == "커텍티비티" and r["status"] == "추론" and r["cmd"] == "apply"
+              for r in log), json.dumps(log, ensure_ascii=False)[:300])
+
+    rc, out = run("lexicon.py", root, "revert", "--batch", batch, "--apply")
+    check("revert restores the batch", rc == 0
+          and "커텍티비티" in typo_file.read_text(encoding="utf-8"), out)
+    run("lexicon.py", root, "apply", "--apply")   # put it back for the rest of the test
+
+    # patch: reader-decided edits (오탈자 · 지시어), names refused
+    edits = tmp / "edits.json"
+    write(edits, json.dumps([
+        {"from": "그 건 정리해서", "to": "그 건〔=커넥티비티 안건〕 정리해서", "kind": "지시어"},
+        {"from": "정우진", "to": "정우진2", "kind": "오탈자"}], ensure_ascii=False))
+    rc, out = run("lexicon.py", root, "patch", "--file", edits,
+                  "--path", "transcripts/2026/2026-06/2026-06-02_오타.md", "--apply")
+    body = typo_file.read_text(encoding="utf-8")
+    check("patch annotates the deictic instead of deleting the words",
+          "그 건〔=커넥티비티 안건〕" in body, body[-200:])
+    check("patch refuses to rewrite a registered person's name",
+          "SKIP(인물)" in out and "정우진2" not in body, out)
+
+    # a "misspelling" that is really another term must be caught by the gate
+    lex = json.loads((root / "_meta" / "lexicon.json").read_text(encoding="utf-8"))
+    lex["terms"].append({"term": "결제", "kind": "용어", "aliases": [], "status": "확정",
+                         "misspellings": [{"form": "커넥티비티", "status": "확정"}]})
+    write(root / "_meta" / "lexicon.json", json.dumps(lex, ensure_ascii=False))
+    run("build_index.py", root)
+    run("build_db.py", root)
+    rc, out = run("validate.py", root)
+    check("validate ERRORs when a misspelling collides with a real term",
+          rc == 1 and "would destroy real text" in out, out[-500:])
+
+    lex["terms"] = [t for t in lex["terms"] if t["term"] != "결제"]
+    write(root / "_meta" / "lexicon.json", json.dumps(lex, ensure_ascii=False))
+    rc, out = run("lexicon.py", root, "add", "--term", "넥스트라", "--kind", "조직",
+                  "--misspelling", "넥스토라", "--desc", "가상의 파트너사")
+    check("add records a user-confirmed pair as 확정", rc == 0 and "신규" in out, out)
+    rc, out = run("lexicon.py", root, "add", "--term", "테스트용어",
+                  "--misspelling", "정우진")
+    check("add refuses a person's name as a misspelling form", "SKIP(인물)" in out, out)
+
+    # DB surface: terms are queryable, and an unapplied correction is loud
+    write(root / "transcripts" / "2026" / "2026-06" / "2026-06-03_재발.md",
+          (root / "transcripts" / "2026" / "2026-06" / "2026-06-02_오타.md")
+          .read_text(encoding="utf-8").replace("acme-0602", "acme-0603")
+          .replace("커넥티비티가 문제다", "커텍티비티가 문제다"))
+    run("build_index.py", root)
+    rc, out = run("build_db.py", root)
+    check("build_db WARNs about known misspellings still in the transcripts",
+          "known misspellings are STILL" in out and "커텍티비티 → 커넥티비티" in out, out)
+    db = sqlite3.connect(root / "_ontology" / "ontology.db")
+    check("terms + term_misspellings are queryable (query mode can cite the lexicon)",
+          db.execute("SELECT COUNT(*) FROM terms").fetchone()[0] >= 2
+          and db.execute("SELECT desc FROM terms WHERE term='넥스트라'").fetchone()[0]
+              == "가상의 파트너사", "")
+    db.close()
+
+
+def test_enrich(tmp):
+    print("\n[12] enrich — 웹 보강 계획·캐시·반영 (프라이버시 게이트 포함)")
+    root = tmp / "corpus_lex"
+    rc, out = run("enrich.py", root, "plan", "--min-count", "4")
+    check("plan exits 0 and composes its own queries", rc == 0 and "검색:" in out, out)
+    check("plan never puts transcript sentences in a query",
+          "문제다" not in out and "늘리자" not in out, out)
+    check("people are not planned without --include-people",
+          "[인물]" not in out.split("검색 제외")[0], out)
+    rc, out = run("enrich.py", root, "plan", "--include-people")
+    check("private relationships are excluded by the gate with a reason",
+          "이서연" in out.split("검색 제외")[1] and "사적 관계" in out, out[-600:])
+    check("a public role + org passes the gate", "[인물] 정우진" in out, out)
+
+    res = tmp / "results.json"
+    write(res, json.dumps({"results": [
+        {"entity": "넥스트라", "kind": "조직", "canonical": "넥스트라(Nextra Inc.)",
+         "summary": "숙박 유통 API를 제공하는 가상의 파트너사",
+         "facts": [{"text": "2019년 설립", "url": "https://example.com/nextra"}],
+         "spelling_variants": ["넥스트러"], "status": "확인됨"},
+        {"entity": "커넥티비티", "kind": "용어", "summary": "연결 개수",
+         "facts": [], "status": "확인됨"}]}, ensure_ascii=False))
+    rc, out = run("enrich.py", root, "save", "--file", res)
+    check("a claim with no URL is refused, and 확인됨 without facts is downgraded",
+          rc == 0 and "DOWNGRADE(커넥티비티)" in out, out)
+    enr = json.loads((root / "_meta" / "enrichment.json").read_text(encoding="utf-8"))
+    check("cache keeps the URL and the fetch date on every fact",
+          enr["entities"]["넥스트라"]["facts"][0]["url"].startswith("http")
+          and enr["entities"]["넥스트라"]["facts"][0]["fetched"], "")
+
+    rc, out = run("enrich.py", root, "apply")
+    lex = json.loads((root / "_meta" / "lexicon.json").read_text(encoding="utf-8"))
+    check("apply dry-run writes nothing",
+          rc == 0 and "dry run" in out
+          and not any(t.get("desc") == "연결 개수" for t in lex["terms"]), out)
+    rc, out = run("enrich.py", root, "apply", "--apply")
+    lex = json.loads((root / "_meta" / "lexicon.json").read_text(encoding="utf-8"))
+    nx = next(t for t in lex["terms"] if t["term"] == "넥스트라")
+    check("the formal name becomes an ALIAS, never the correction target",
+          "넥스트라(Nextra Inc.)" in nx["aliases"]
+          and all(m["form"] != "넥스트라(Nextra Inc.)" for m in nx["misspellings"]),
+          json.dumps(nx, ensure_ascii=False))
+    check("a web-sourced spelling fix needs a human unless --trust-web",
+          next(m for m in nx["misspellings"] if m["form"] == "넥스트러")["status"] == "후보",
+          json.dumps(nx["misspellings"], ensure_ascii=False))
+    check("apply does not overwrite a description a human already wrote",
+          nx["desc"] == "가상의 파트너사", nx["desc"])
+
+    rc, out = run("build_db.py", root)
+    db = sqlite3.connect(root / "_ontology" / "ontology.db")
+    rows = db.execute("SELECT entity, fact, url, source FROM entity_facts").fetchall()
+    check("web facts land in their own table with a URL (never in models/evidence)",
+          any(r[0] == "넥스트라" and r[3] == "web" and r[2].startswith("http") for r in rows),
+          str(rows))
+    db.close()
+    rc, out = run("validate.py", root)
+    check("validate reports web facts as external, not as evidence",
+          "외부 출처" in out and "근거 등급을 올리지 않음" in out, out[-400:])
+
+    # right to be forgotten reaches the dictionary and the web cache too
+    pp = tmp / "corpus_lex_purge"
+    shutil.copytree(root, pp)
+    reg = json.loads((pp / "_meta" / "speakers.json").read_text(encoding="utf-8"))
+    for e in reg:
+        if e["name"] == "정우진":
+            e["public"] = True
+    write(pp / "_meta" / "speakers.json", json.dumps(reg, ensure_ascii=False))
+    enr = json.loads((pp / "_meta" / "enrichment.json").read_text(encoding="utf-8"))
+    enr["entities"]["정우진"] = {"kind": "인물", "summary": "가상 인물", "status": "불확실",
+                                "facts": [{"text": "x", "url": "https://example.com/p",
+                                           "fetched": "2026-09-01"}]}
+    write(pp / "_meta" / "enrichment.json", json.dumps(enr, ensure_ascii=False))
+    rc, out = run("purge_person.py", pp, "--name", "정우진", "--apply")
+    enr = json.loads((pp / "_meta" / "enrichment.json").read_text(encoding="utf-8"))
+    check("purge removes cached web findings about the person",
+          rc == 0 and "정우진" not in enr["entities"], out[-400:])
+    log = (pp / "_meta" / "lexicon-corrections.jsonl")
+    check("purge scrubs correction-log lines naming them",
+          not log.exists() or "정우진" not in log.read_text(encoding="utf-8"), "")
+
+
 def main():
     with tempfile.TemporaryDirectory(prefix="mental-ontology-tests-") as td:
         tmp = Path(td)
@@ -1101,6 +1288,8 @@ def main():
         test_batch_pipeline(tmp)
         test_purge_person(tmp)
         test_voiceprint(tmp)
+        test_lexicon(tmp)
+        test_enrich(tmp)
         test_migration_v1_to_v2(tmp)
     print(f"\n{'FAIL' if FAILURES else 'PASS'}: {PASS} passed, {len(FAILURES)} failed"
           + (f" — {FAILURES}" if FAILURES else ""))

@@ -81,6 +81,16 @@ def dossier(name, entry, db, models_of, out_path):
         L += ["", "- " + "\n- ".join(intro)]
     L.append("")
 
+    web = entry.get("web") or {}
+    if web.get("summary"):
+        # Kept in its own section on purpose: this is what the internet says, not what
+        # anyone said in a room. It never counts as evidence for a belief.
+        L += ["## 외부 정보 (웹 — 대화 근거 아님)",
+              f"- {web['summary']}"
+              + (f"  ([출처]({web['url']})" if web.get("url") else "  (출처 미상")
+              + (f", {web.get('fetched')})" if web.get("fetched") else ")")
+              + (f" · {web['status']}" if web.get("status") else ""), ""]
+
     personal = entry.get("personal") or []
     if personal:
         L.append("## 개인 맥락")

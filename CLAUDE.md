@@ -24,11 +24,12 @@ The repo is also a **Claude Code plugin and its own marketplace** (`.claude-plug
 + `marketplace.json`, plugin source `"./"` — so `skills/` must stay at the repo root). Users
 install with `claude plugin marketplace add eardori/mental-ontology` and update with
 `claude plugin update`; the plugin is **copied** into `~/.claude/plugins/cache/<marketplace>/
-<plugin>/<version>/`, so bump `version` in BOTH manifests when shipping a change or clients
-keep the cached copy. Editing this repo never affects an installed copy — develop against
+<plugin>/<version>/`, so bump `version` in `.claude-plugin/plugin.json` when shipping a change
+or clients keep the cached copy (`marketplace.json` carries no version field — the plugin
+manifest is the single source of truth). Editing this repo never affects an installed copy — develop against
 `tests/run_tests.py`, not the cache. `INSTALL.md` also documents the manual
 `cp -R` path for forks (never run both — the skill would load twice). User-visible changes belong in `CHANGELOG.md`:
-the repo versions itself there (currently 2.0.0), and a reader landing on the repo uses it
+the repo versions itself there (currently 2.1.0), and a reader landing on the repo uses it
 plus the README's "30초 요약" to understand what this is.
 
 ## Commands
@@ -60,11 +61,14 @@ from pathlib import Path; t.build_corpus_v2(Path('/tmp/mo-corpus'))"
 python3 skills/mental-ontology/scripts/build_index.py /tmp/mo-corpus
 python3 skills/mental-ontology/scripts/build_db.py    /tmp/mo-corpus
 python3 skills/mental-ontology/scripts/validate.py    /tmp/mo-corpus   # exit 1 = errors, 0 = clean/warns
+python3 skills/mental-ontology/scripts/lexicon.py    /tmp/mo-corpus mine   # 용어·오타 후보 (dry run)
+python3 skills/mental-ontology/scripts/enrich.py     /tmp/mo-corpus plan   # 무엇을 검색할지 + 질의문
 ```
 
 Every script takes `<corpus_path>` as its first argument. The destructive ones
-(`migrate_objects.py`, `merge_ontology.py`, `purge_person.py`, `consolidate.py`) **dry-run by
-default** and need `--apply` / `--apply-recalib`; they back up into `_ontology/_work/` first.
+(`migrate_objects.py`, `merge_ontology.py`, `purge_person.py`, `consolidate.py`, and every
+mutating `lexicon.py` / `enrich.py` subcommand) **dry-run by default** and need `--apply` /
+`--apply-recalib`; they back up into `_ontology/_work/` first.
 Keep that contract for any new script.
 
 ## Architecture
@@ -83,6 +87,7 @@ or asset file and add at most a router line** — the router is loaded on every 
 
 ```
 Plaud MCP / audio → transcripts/*.md (frontmatter + 요약 + 액션아이템 + transcript)
+                  → _meta/lexicon.json   (용어 사전 — corrects the text before it is indexed)
                   → _meta/speakers.json  (person registry — the join key)
                   → _ontology/objects.json  (THE data of record)
                   → derived: index.html · ontology.db · people/*.md
@@ -110,6 +115,27 @@ Plaud MCP / audio → transcripts/*.md (frontmatter + 요약 + 액션아이템 +
   (what was said) beside `reading` (what was inferred). Every reading starts `추정` and is
   resolved by a later meeting into `확인됨`/`빗나감`, which is what lets validate.py and
   build_db.py print a **hit rate** — the layer has to be able to say how often it was wrong.
+- **Transcripts are only edited by `lexicon.py`.** Two paths, one contract: `apply` is
+  dictionary-driven (misspelling pairs at status 확정/추론) and `patch` takes reader-decided
+  find→replace pairs (일반 오탈자, 지시어 주석) so the LLM never re-emits a body. Both back
+  up into `_ontology/_work/lexicon-backup-<batch>/`, append to `_meta/lexicon-corrections.jsonl`,
+  and are undone by `revert --batch`. Two rules are enforced in code and pinned by tests:
+  **a person's name is never fixed by rewriting text** (it becomes a `speakers.json` alias —
+  rewriting can silently merge two people, and the DB joins by alias anyway), and **an inferred
+  pair says so** (확정 = user, 추론 = thresholds at the top of the script, 후보 = report only).
+  Because corrections change the text, `lexicon.py apply` runs BEFORE `build_index.py` in the
+  Stage 5 chain; `build_db.py` WARNs when a known misspelling is still in the transcripts.
+  `mine` learns only the 추론 tier — thresholds are printed in every report, and name
+  candidates and deictic-laden action items are reported for humans, never auto-applied.
+- **Web enrichment enters through a cache, exactly like the calendar.** `enrich.py plan`
+  decides what is worth looking up AND **composes the query strings itself** (entity name +
+  registry org — transcript text never reaches a search engine); the skill searches; `save`
+  writes `_meta/enrichment.json`; `apply` folds it into the lexicon and the registry, filling
+  **empty fields only**. A claim without a URL is dropped and a sourceless `확인됨` is
+  downgraded to `불확실`. People are gated: 팀원/가족/지인 are never planned, public role +
+  org (or explicit `"public": true`) is the only way in. Web facts live in `entity_facts` and
+  **raise no evidence grade** — that rule is written in `EXTRACTION.md`, checked by
+  `validate.py`, and rendered as a separate dossier section.
 - **Calendar data enters through a cache, never live.** Scripts cannot call MCP tools, so
   the skill fetches events and writes `_meta/calendar/<YYYY-MM>.json`; `match_calendar.py`
   reads only that. This is what makes matching deterministic, re-runnable and testable. The
@@ -166,7 +192,9 @@ must be reported, not swallowed.
   when `schema_version < 2`), so a legacy corpus fails loudly nowhere: run
   `migrate_objects.py` first.
 - **A new top-level field needs a `build_db.py` table**, or query mode cannot cite it. `traps`,
-  `conflict_axes` and `readings` now have tables; `meta_patterns` still does not (viewer-only).
+  `conflict_axes`, `readings`, and now `terms`/`term_misspellings`/`entity_facts` (from
+  `_meta/lexicon.json` + `_meta/enrichment.json`) have tables; `meta_patterns` still does not
+  (viewer-only).
   This bit the repo once already — the shipped v3 character data was invisible to SQL for a
   release.
 - **Two copies of the sample data.** `examples/sample-objects.json` and the embedded
@@ -175,6 +203,9 @@ must be reported, not swallowed.
 - **Whisper language detection.** Defaults to `auto` sampling mid-file; never force a language
   from the first 30 seconds (intros/music cause fluent hallucination loops). `repetition_ratio`
   > 0.3 in the output means re-run with an explicit `--lang`.
+- **`_meta/` now holds three registries, and `purge_person.py` must reach all of them.**
+  speakers · voiceprints · lexicon + enrichment + the corrections log. A purge that leaves the
+  name in the dictionary or a cached search result has not deleted the person; tests pin this.
 - **Voiceprints are biometric and not rebuildable.** The source audio is usually gone after
   ingest, so `_meta/voiceprints.json` cannot be regenerated like the DB or the dossiers — it is
   the one derived-looking file that must be backed up. Anything that deletes a person

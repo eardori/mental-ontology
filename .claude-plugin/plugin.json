@@ -1,7 +1,7 @@
 {
   "name": "mental-ontology",
   "displayName": "Mental Ontology",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "녹음을 쌓아 사람들의 사고·의도·약속을 기억하고, 놓친 것을 먼저 알려주는 관계 인텔리전스 파이프라인. Turns recordings into a map of how the people around you think, what they wanted, and what you owe them — then briefs you before you need it.",
   "author": {
     "name": "Kevin Oh",

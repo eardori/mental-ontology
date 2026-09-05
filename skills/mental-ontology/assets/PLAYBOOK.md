@@ -99,7 +99,24 @@ WHERE c.done = 0 ORDER BY CASE WHEN c.due='' THEN 1 ELSE 0 END, c.due;
 SELECT a AS 구성원, b AS 보고상대, note AS 팀 FROM network WHERE kind='보고';
 SELECT team, GROUP_CONCAT(name, ', ') FROM people WHERE team != '' GROUP BY team;
 SELECT name, relationship FROM people WHERE relationship != '';   -- 나와의 관계별
+
+-- N. 용어 사전 — 이 조직이 쓰는 말과, STT가 그걸 틀리는 방식
+SELECT term, kind, desc, status FROM terms ORDER BY count DESC;
+SELECT t.term, m.form, m.status FROM term_misspellings m JOIN terms t ON t.term = m.term;
+-- 검색이 안 잡힐 때: 틀린 표기까지 함께 찾는다 (교정 전 데이터가 남아 있을 수 있다)
+SELECT date, title, speaker, text FROM utterances u JOIN meetings mt ON mt.rowid=u.meeting_rowid
+WHERE u.text LIKE '%커넥티비티%' OR u.text LIKE '%커텍티비티%' ORDER BY date DESC;
+
+-- O. 외부(웹) 정보 — 회의에서 나온 말이 아니다. 항상 출처·날짜와 함께 인용한다
+SELECT entity, kind, fact, url, fetched, status FROM entity_facts ORDER BY entity;
+SELECT term, desc, web_url, web_fetched FROM terms WHERE web_url != '';
 ```
+
+**답변 규칙**: `entity_facts`와 `terms.web_*`는 **웹 출처**다. "웹 출처(2026-09-05 확인)"
+처럼 반드시 표시하고, 회의 발언과 같은 문단에서 근거처럼 섞지 않는다. 웹 사실은 어떤
+모델의 `evidence`도 올리지 못한다 — 사람이 무엇을 믿는지는 인터넷이 알려주지 않는다.
+용어를 물어보면 `terms.desc`를 먼저 주고, 사전에 없으면 "아직 사전에 없다"고 말한 뒤
+`lexicon.py add`로 등록할지 묻는다.
 
 #### 대화 의도 (readings) — "그래서 저 사람이 원한 게 뭐였지?"
 
@@ -149,6 +166,9 @@ SELECT who, surface, reading, confidence, status FROM readings WHERE meeting = ?
 | "X 근황/개인적인 거 뭐 있었지?" | `people/X.md` 도시에의 개인 맥락 + 수기 메모 — **△/⛔ 태그 확인**: 사적·언급금지 항목은 "상대가 먼저 꺼낼 때만"이라고 함께 알려줄 것 |
 | "내가 뭐 약속했더라? / X한테 진 빚?" | Recipe K → 기한 지난 것 먼저, 근거 회의와 함께 |
 | "X는 누구 팀이야? / 우리 조직도 보여줘" | Recipe M — 비어 있으면 "조직도 입력해줘" 플로우 제안 |
+| "그 용어 무슨 뜻이야? / 이 약어 뭐야?" | Recipe N → `terms.desc`(+ 웹 출처면 날짜 표기). 없으면 FTS로 실제 쓰임 3개를 보여주고 뜻을 물어 `add` |
+| "검색해도 안 나오는데?" | Recipe N의 오표기 조회 — 틀린 표기로 남아 있을 수 있다. `lexicon.py mine`로 후보를 확인하고 교정 제안 |
+| "이 회사/사람 뭐 하는 데야?" | 먼저 코퍼스(A2·C) → 그래도 모르면 Stage 4c 웹 보강(프라이버시 게이트 확인). 답변에서 회의 근거와 웹 출처를 **문단을 나눠** 제시 |
 
 ---
 

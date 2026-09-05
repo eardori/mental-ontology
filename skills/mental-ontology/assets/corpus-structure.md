@@ -19,6 +19,10 @@ Plain markdown — works standalone or inside an Obsidian vault.
 │   │                             #   tier/first_met_context/intro_by/personal[] power dossiers
 │   ├── voiceprints.json          # VOICE IDENTITY (Stage 2b/3) — per-person voice centroids;
 │   │                             #   biometric, local only, purged by purge_person.py
+│   ├── lexicon.json              # 용어 사전 (Stage 4b) — 이 조직이 쓰는 말 + STT가 그걸
+│   │                             #   틀리는 방식. 본문 교정의 근거이자 query mode의 terms 테이블
+│   ├── lexicon-corrections.jsonl # 교정 감사 로그 — 언제 무엇을 무슨 근거로 바꿨는지 (append-only)
+│   ├── enrichment.json           # 웹 보강 캐시 (Stage 4c) — 주장마다 URL·수집일. 근거 아님
 │   ├── calendar/                 # 캘린더 캐시 (Stage 1b) — 월별 일정, 매칭의 입력
 │   │   └── <YYYY-MM>.json        #   {fetched, range, owner_domain, events[]}
 │   ├── state.json                # {"last_synced": "YYYY-MM-DD"}
@@ -32,8 +36,9 @@ Plain markdown — works standalone or inside an Obsidian vault.
 │   ├── index.html                # self-contained viewer (embedded data)
 │   ├── REPORT.md                 # narrative report
 │   └── _work/                    # intermediate files ONLY — batch-pipeline workdirs
-│       └── <date-label>/         #  (extract/synth files) + purge-backup-<이름>/;
-│                                 #  deletable after a validated build / final purge
+│       ├── <date-label>/         #  (extract/synth files) + purge-backup-<이름>/;
+│       │                         #  deletable after a validated build / final purge
+│       └── lexicon-backup-<batch>/  # 교정 직전 원본 — `lexicon.py revert --batch` 의 대상
 └── _strategy/                    # Stage 9 deliverables (OPPORTUNITIES-*, STRATEGY-*, …)
 ```
 
@@ -91,6 +96,19 @@ Plain markdown — works standalone or inside an Obsidian vault.
   재실행이 같은 답을 낸다), 매칭 결과가 회의록 프론트매터의 `setting`(TPO)·
   `calendar_event`로 들어간다. 참석자 명단은 Stage 3 화자 추정의 정답지다.
   일정 본문에 민감 정보가 섞이기 쉬우니 `description`은 아젠다·링크만 짧게 남긴다.
+- **`_meta/lexicon.json` = 코퍼스가 스스로 배운 어휘.** `terms[]`는
+  `{term, kind, desc, aliases[], misspellings[{form,status,source}], status, protect, web{}}`.
+  `status`는 **확정**(사용자 확인) / **추론**(스크립트 임계값이 판단) / **후보**(리포트만).
+  확정·추론만 본문에 적용되고, 적용 사실은 `lexicon-corrections.jsonl`에 남으며
+  `_ontology/_work/lexicon-backup-<batch>/`로 되돌릴 수 있다. **인물 이름은 사전이 아니라
+  `speakers.json`의 `aliases`로 고친다** — 본문을 고치면 서로 다른 두 사람이 조용히 하나로
+  합쳐질 수 있고, DB 조인은 어차피 alias로 돈다. `protect: true`인 용어는 영원히 교정 대상 밖.
+- **`_meta/enrichment.json` = 밖에서 알아낸 것.** `entities`는 이름 → `{kind, canonical,
+  summary, facts[{text,url,fetched}], spelling_variants[], status(확인됨|불확실|기각)}`.
+  캘린더와 같은 캐시 규약이다(스크립트는 웹을 못 부른다 → 스킬이 채우고 스크립트는 읽는다).
+  **URL 없는 주장은 저장되지 않는다.** DB에서는 `entity_facts` 테이블로만 보이고 근거 등급과
+  무관하다. 인물은 프라이버시 게이트를 통과해야 들어온다(팀원·가족·지인은 검색 자체를 안 한다;
+  레지스트리 `"public": true|false`로 사용자가 직접 정할 수 있다).
 - **Privacy**: the corpus is sensitive. Keep local; if it lives near a git repo, gitignore it.
   Recommended location: a dedicated folder or the user's Obsidian vault (iCloud-synced, off-repo).
   `voiceprints.json` is **biometric data** — the most sensitive file in the corpus.

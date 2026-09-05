@@ -187,7 +187,7 @@ Goal: replace "Speaker 1/2" and misattributed labels with real names, learning o
 
 ## Stage 4 — Clean & save markdown
 
-**Token economy rule: format the transcript body with a python script — never have the LLM rewrite or re-emit the transcript.** The LLM decides only: title, category, summary, speaker mapping, light global fixes (recurring proper-noun STT errors as find→replace pairs), and whether to split.
+**Token economy rule: format the transcript body with a python script — never have the LLM rewrite or re-emit the transcript.** The LLM decides only: title, category, summary, speaker mapping, find→replace pairs for what a reader must judge (Stage 4b), and whether to split.
 
 1. If one recording clearly contains **two+ unrelated meetings** (long silence gap, topic/participant switch), split into `_part1`, `_part2` files.
 2. Write to `<corpus>/transcripts/<YYYY>/<YYYY-MM>/<YYYY-MM-DD>_<short-slug>.md`:
@@ -232,11 +232,101 @@ Goal: replace "Speaker 1/2" and misattributed labels with real names, learning o
    - After saving, give the user a 3-line digest: 새 인물 / 새 관계 신호 / 기억할 개인 맥락.
 6. **Batch processing**: for many recordings, fan out with parallel subagents (cheapest capable model), one recording per agent, each following stages 1→4. Speaker questions (Stage 3) must run in the main conversation — collect unknown speakers from subagent results, ask the user once, then patch the files.
 
+### Stage 4b — 용어 사전 · 오타 교정 (저장 직후, 매 동기화)
+
+STT는 같은 고유명사를 **매번 같은 방식으로** 틀린다. 틀린 표기는 SQL이 못 찾는 용어이고,
+validate가 못 붙이는 인용이고, 심하면 조인이 끊긴 사람이다. 그래서 코퍼스는 자기 어휘를
+스스로 배운다 — `_meta/lexicon.json`이 그 사전이고, 교정은 전부 백업·로그·되돌리기가 딸린다.
+
+1. **새 파일에 사전을 먼저 적용한다** (확정 + 추론):
+   ```bash
+   python3 <skill_dir>/scripts/lexicon.py <corpus> apply --path <새 전사 경로> --apply
+   ```
+2. **새 후보를 캔다** — 이번 동기화 구간만:
+   ```bash
+   python3 <skill_dir>/scripts/lexicon.py <corpus> mine --since <YYYY-MM-DD> \
+       --json <corpus>/_ontology/_work/<date-label>/lexicon.json --apply
+   ```
+   `--apply`는 **추론 티어만** 학습한다(정답어 ≥5회·변형 ≤2회·자모거리 1·4자 이상 —
+   임계값은 스크립트 상단에 공개돼 있고 리포트가 매번 출력한다). 리포트는 네 덩어리로 나온다:
+   - **추론** — 자동 학습·자동 적용. 사람에게 묻지 않는다.
+   - **후보** — 근거가 약함. 사람 확인 전까지 본문을 건드리지 않는다.
+   - **인물 이름 오인식** — 본문을 절대 고치지 않는다. `_meta/speakers.json`의
+     `aliases`에 추가할 것을 제안한다(build_db가 그걸로 조인하므로 이쪽이 정답이고,
+     이름을 덮어쓰면 서로 다른 두 사람이 조용히 하나로 합쳐질 수 있다).
+   - **새 용어 후보 / 지시어가 남은 액션아이템** — 아래 3·4에서 처리.
+3. **읽어야만 판단되는 교정은 `patch`로** — 전사 본문을 다시 뱉지 말고 쌍만 넘긴다:
+   ```bash
+   # edits.json: [{"from":"...","to":"...","kind":"오탈자|지시어|용어","note":"근거"}]
+   python3 <skill_dir>/scripts/lexicon.py <corpus> patch --path <파일> --file edits.json --apply
+   ```
+   - **일반 오탈자·띄어쓰기**: 문맥상 100% 확실할 때만. 애매하면 두고 리포트에 남긴다.
+   - **지시어(그거·그 건·저번 거)는 지우지 말고 주석으로 푼다** — 실제 발언은 보존이
+     원칙이다: `그 건〔=번들 가격안〕`. 같은 전사 안에 선행어가 있고 한 가지로만 읽힐 때만
+     달고, 추측이면 달지 않는다. 액션아이템의 지시어는 우선순위가 높다(약속이 무엇에 대한
+     약속인지 모르면 오픈 루프가 무의미해진다).
+   - 등록된 인물 이름은 `patch`도 거부한다 — 이름은 레지스트리 문제다.
+4. **질문은 동기화당 1문항 배치에 합류한다** (Stage 3 화자 질문과 **같은** AskUserQuestion
+   호출). 마찰 예산은 하나다. 상위 3–4건만 묻고 나머지는 아래 "용어 정리" 플로우로 미룬다.
+   질문 형식: "'커텍티비티'가 12번 나오는데 '커넥티비티'의 오인식일까요?" ·
+   선택지 = 정답어 후보 / 그대로 둔다 / 다른 표기(Other).
+5. **확인된 답은 즉시 사전에 기록**한다 (다음부터 안 묻기 위해):
+   ```bash
+   python3 <skill_dir>/scripts/lexicon.py <corpus> add --term "커넥티비티" --kind 용어 \
+       --misspelling "커텍티비티" --desc "공급-수요 연결 개수"
+   # 여러 건은 --file terms.json ([{term,kind,desc,aliases,misspellings}])
+   ```
+   사용자가 "그건 원래 그렇게 쓴다"고 하면 `--protect`로 넣어 다시는 교정 후보가 되지 않게 한다.
+6. 교정이 있었으면 **파생 체인을 다시 돌린다**(본문이 바뀌었으므로): Stage 5 명령 블록.
+   되돌리기는 `lexicon.py <corpus> revert --batch <id> --apply`, 이력은 `log`.
+
+**용어 정리 플로우** — 트리거: "용어 정리해줘 / 사전 정리" (아무 때나). 화자 백필과 같은 구조:
+코퍼스 전체를 `mine`으로 훑고, 후보를 빈도순으로 4개씩 묶어 물어보고, `add` → `apply --apply`
+→ Stage 5 재실행 → 바뀐 커버리지를 보고한다. 사전이 두꺼워질수록 동기화 중 질문은 줄어든다.
+
+### Stage 4c — 웹으로 사실 확인 (선택 · 조건부)
+
+회의는 "넥스토라 쪽에 물어보죠"라고만 한다. 그게 회사인지, 표기가 맞는지, 뭐 하는 곳인지는
+웹이 안다. 캘린더와 **똑같은 캐시 구조**다 — 스크립트는 웹을 못 부르니, 스킬이 검색하고
+스크립트는 캐시만 읽는다(재실행이 같은 답을 내야 하고, 모든 주장에 출처가 붙어야 한다).
+
+1. 웹 도구 확인: `ToolSearch` → `select:WebSearch,WebFetch`. 없으면 **조용히 건너뛴다**.
+2. 무엇을 찾을지 계획한다 — **질의문은 스크립트가 만든다**:
+   ```bash
+   python3 <skill_dir>/scripts/enrich.py <corpus> plan --json <work>/enrich-plan.json [--include-people]
+   ```
+3. **계획에 적힌 질의문만 그대로 검색한다.** 회의 본문(숫자·조건·불만·거래 내용)을 검색어에
+   붙이지 않는다 — 검색은 외부로 나가는 행위이고, 코퍼스는 그러라고 만든 게 아니다.
+4. 결과를 `results.json`으로 쓰고 캐시에 넣는다. **주장마다 URL이 있어야 한다**(없으면
+   스크립트가 버리고, `확인됨`은 `불확실`로 강등된다):
+   ```bash
+   # {"results":[{"entity","kind","canonical","summary","facts":[{"text","url"}],
+   #              "spelling_variants":[],"role","org","status":"확인됨|불확실|기각"}]}
+   python3 <skill_dir>/scripts/enrich.py <corpus> save --file results.json
+   python3 <skill_dir>/scripts/enrich.py <corpus> apply            # dry run — 무엇이 바뀌는지
+   python3 <skill_dir>/scripts/enrich.py <corpus> apply --apply --trust-web
+   ```
+   `apply`는 사전의 빈 `desc`와 레지스트리의 **빈** `role`/`org`만 채운다(사람이 적은 값은
+   절대 덮어쓰지 않는다). 정식 명칭은 별칭으로 들어갈 뿐, 발언 본문을 대체하지 않는다.
+   웹발 표기 교정은 기본이 `후보`이고, 코퍼스가 이미 그 표기를 쓰고 있을 때만
+   `--trust-web`으로 `추론`이 된다.
+5. **프라이버시 게이트** (스크립트가 강제한다):
+   - 인물은 `--include-people` 없이는 계획에 오르지 않는다.
+   - 레지스트리 `relationship`이 팀원·가족·지인·친구·동료면 **검색하지 않는다**(이유를 출력).
+   - 공개 직함(대표/CEO/창업자/연사/교수…)과 소속이 함께 있을 때만 공인으로 본다.
+     사용자가 명시적으로 정하려면 레지스트리에 `"public": true|false`.
+   - 사용자가 "이 사람 찾아봐"라고 직접 지시하면 그 건에 한해 진행하고, 결과를 저장할지 묻는다.
+6. **웹 사실은 근거가 아니다.** `entity_facts` 테이블에 URL·수집일과 함께 따로 쌓이고,
+   어떤 모델의 `evidence`도 올리지 않는다. 답변에서 인용할 때는 항상 "웹 출처(날짜)"로
+   표시해서 회의에서 나온 말과 섞이지 않게 한다. 웹은 회사 이름 철자를 알려줄 수는 있어도
+   그 사람이 무엇을 믿는지는 알려주지 못한다.
+
 ## Stage 5 — Index & refresh
 
 Run after every batch of new files (all three are cheap local scripts):
 
 ```bash
+python3 <skill_dir>/scripts/lexicon.py <corpus_path> apply --apply    # 용어 교정 (Stage 4b)
 python3 <skill_dir>/scripts/build_index.py <corpus_path>      # catalog (매칭의 입력)
 python3 <skill_dir>/scripts/match_calendar.py <corpus_path> --apply   # 캘린더 있을 때만
 python3 <skill_dir>/scripts/build_index.py <corpus_path>      # 바뀐 프론트매터 반영
@@ -245,9 +335,11 @@ python3 <skill_dir>/scripts/build_dossiers.py <corpus_path>   # people/ dossiers
 python3 <skill_dir>/scripts/build_briefing.py <corpus_path> --meeting <source_id>
 ```
 
-순서가 곧 의존성이다: `match_calendar.py`는 `_index/catalog.json`을 읽고 프론트매터를
-고치므로, **앞뒤로 `build_index.py`가 한 번씩** 필요하다(카탈로그를 만들고, 바뀐
-`setting`·참석자를 다시 읽어들이기 위해). 캘린더가 없으면 2·3번째 줄은 건너뛴다.
+순서가 곧 의존성이다: 교정은 **본문을 바꾸므로 인덱싱보다 먼저**여야 하고,
+`match_calendar.py`는 `_index/catalog.json`을 읽고 프론트매터를 고치므로 **앞뒤로
+`build_index.py`가 한 번씩** 필요하다(카탈로그를 만들고, 바뀐 `setting`·참석자를 다시
+읽어들이기 위해). 캘린더가 없으면 3·4번째 줄은 건너뛴다. `build_db.py`가
+"known misspellings are STILL in the transcripts" WARN을 내면 1번 줄을 건너뛴 것이다.
 
 **Show the briefing — this is the payoff of the sync, not an optional extra.** The user
 cannot ask about what they did not notice, so the last step of every sync PUSHES it:

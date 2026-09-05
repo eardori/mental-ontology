@@ -65,6 +65,16 @@ readings에도 같은 문법이 적용된다 — 식사 자리의 `마무리발�
 특히 높고(문 앞에서 나오는 부탁), IR 자리의 `양보조건`은 협상 포지션일 수 있다.
 setting이 없는 회의록에는 이 보정을 적용하지 말 것 — 없는 맥락을 지어내지 않는다.
 
+**교정된 본문과 웹 정보를 근거로 착각하지 말 것.** 전사는 `lexicon.py`가 고칠 수 있다
+(용어 표기·오탈자). 표기가 고쳐졌다고 근거가 세지는 것은 아니다 — 등급은 여전히 *무엇을
+몇 번, 어떤 자리에서 말했는가*로만 정해진다. 두 가지 표식을 그대로 존중하라:
+
+- `그 건〔=번들 가격안〕` — 대괄호 안은 **읽는 사람이 문맥에서 푼 주석**이지 발언이 아니다.
+  `quote`에는 실제 발화만 담고(주석은 빼거나 밖에서 설명), 주석에만 기대어 모델을 만들지 말 것.
+- `_meta/enrichment.json` / DB `entity_facts` — **웹에서 온 사실**이다. 회사 설립연도·정식
+  표기·공개 직함을 정확히 쓰는 데는 써도, 어떤 모델의 `evidence`도 올리지 못하고 그 자체로
+  모델·readings의 근거가 되지 못한다. 인터넷은 사람이 무엇을 믿는지 모른다.
+
 **Contradiction beats repetition.** If a later meeting contradicts a model, do not
 keep it `high`: downgrade it, or move the shift into `evolution`/`timeline` (the
 change IS the signal). `last_seen` must reflect the last *confirming* evidence —

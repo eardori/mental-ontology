@@ -9,6 +9,9 @@ What it does (anonymize mode — the default and only mode):
   transcripts/   speaker labels AND body mentions of the name/aliases → "[삭제된 인물]"
   _meta/speakers.json   registry entry removed
   _meta/voiceprints.json  the person's voiceprint (biometric) removed
+  _meta/lexicon.json      terms/aliases/misspelling forms that ARE the name removed
+  _meta/enrichment.json   cached web findings about them removed
+  _meta/lexicon-corrections.jsonl  audit lines naming them removed
   _ontology/objects.json  people[] entry removed; models held ONLY by them removed,
                 shared models lose them as holder; about/relations/network entries
                 involving them removed; evolution/timeline text left (name replaced)
@@ -105,6 +108,58 @@ def main():
                     vp["people"].pop(k)
                 json.dump(vp, open(vp_path, "w", encoding="utf-8"),
                           ensure_ascii=False, indent=1)
+
+    # 2c) lexicon + web enrichment — a purge that leaves the name in the dictionary or
+    #     in a cached search result has not deleted the person.
+    lex_path = f"{corpus}/_meta/lexicon.json"
+    if os.path.exists(lex_path):
+        lex = json.load(open(lex_path, encoding="utf-8"))
+        terms = lex.get("terms", [])
+        keep, dropped, trimmed = [], 0, 0
+        for e in terms:
+            if norm(e.get("term", "")) in toks:
+                dropped += 1
+                continue
+            n0 = len(e.get("misspellings") or [])
+            e["misspellings"] = [m for m in e.get("misspellings") or []
+                                 if norm(m.get("form", "")) not in toks]
+            e["aliases"] = [a for a in e.get("aliases") or [] if norm(a) not in toks]
+            trimmed += n0 - len(e["misspellings"])
+            keep.append(e)
+        if dropped or trimmed:
+            changes.append(("_meta/lexicon.json",
+                            f"{dropped} terms removed, {trimmed} misspelling forms removed"))
+            if apply_:
+                backup(lex_path)
+                lex["terms"] = keep
+                json.dump(lex, open(lex_path, "w", encoding="utf-8"),
+                          ensure_ascii=False, indent=1)
+
+    enr_path = f"{corpus}/_meta/enrichment.json"
+    if os.path.exists(enr_path):
+        enr = json.load(open(enr_path, encoding="utf-8"))
+        hit = [k for k in (enr.get("entities") or {}) if norm(k) in toks]
+        if hit:
+            changes.append(("_meta/enrichment.json",
+                            f"{len(hit)} web-enrichment entries removed"))
+            if apply_:
+                backup(enr_path)
+                for k in hit:
+                    enr["entities"].pop(k)
+                json.dump(enr, open(enr_path, "w", encoding="utf-8"),
+                          ensure_ascii=False, indent=1)
+
+    log_path = f"{corpus}/_meta/lexicon-corrections.jsonl"
+    if os.path.exists(log_path):
+        lines = [l for l in open(log_path, encoding="utf-8") if l.strip()]
+        keep_l = [l for l in lines
+                  if not any(t in unicodedata.normalize("NFC", l) for t in body_toks)]
+        if len(keep_l) != len(lines):
+            changes.append(("_meta/lexicon-corrections.jsonl",
+                            f"{len(lines) - len(keep_l)} log lines naming them removed"))
+            if apply_:
+                backup(log_path)
+                open(log_path, "w", encoding="utf-8").write("".join(keep_l))
 
     # 3) ontology
     opath = f"{corpus}/_ontology/objects.json"

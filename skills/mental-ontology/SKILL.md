@@ -5,7 +5,9 @@ description: >
   think, what they wanted in each conversation, and what you owe them: fetch transcripts via
   Plaud MCP (or transcribe raw audio locally with Whisper + local diarization), identify
   speakers by voiceprint and calendar attendee lists, clean and save meeting markdown into a
-  corpus, extract mental models (beliefs, decision frames, tensions, traps) and readings
+  corpus, repair recurring STT errors from a corpus-learned terminology lexicon (and, when
+  allowed, verify names and terms on the web with sourced facts),
+  extract mental models (beliefs, decision frames, tensions, traps) and readings
   (per-conversation intent) into an ontology with an HTML viewer, person dossiers and a
   SQLite database, PUSH a briefing of what the user missed after every sync, and answer
   questions or run strategy workflows grounded in the data.
@@ -13,6 +15,7 @@ description: >
   "멘탈모델 온톨로지 만들어줘", "새 미팅 코퍼스에 추가해줘", "온톨로지에 물어봐줘",
   "X는 어떻게 생각해?", "이 사람에게 맡겨도 될까", "미팅 준비해줘", "회의 데이터로 사업 아이디어",
   "저 사람이 원한 게 뭐야", "내가 놓친 거 있어", "이 목소리 누구야", "이번 주 정리해줘",
+  "용어 정리해줘", "오타 좀 잡아줘", "이 회사 뭐 하는 데야 찾아봐", "이 사람 검색해봐",
   "내일 일정 브리핑해줘", "캘린더랑 연결해줘", "화자 정리해줘", "조직도 입력해줘",
   "전략 짜줘", "process my Plaud recordings", "build a mental model ontology",
   "what did I miss in that meeting", "brief me before I meet X",
@@ -30,7 +33,8 @@ summary alone** (details, formats, and guardrails live in the stage files):
 | 0 | Setup & config | first run, "설치 확인" | `stages/ingest.md` |
 | 1–2 | Fetch from Plaud · **캘린더 매칭** · Whisper | "녹음 가져와줘", "동기화", "캘린더 연결해줘" | `stages/ingest.md` |
 | 3 | Speaker attribution (+voiceprint, backfill, 조직도) | auto; "화자 정리해줘", "이 목소리 누구야", "조직도 입력해줘" | `stages/ingest.md` |
-| 4–5 | Clean & save · Index & refresh · **놓친 것 브리핑** | auto after fetch | `stages/ingest.md` |
+| 4 | Clean & save · **용어 사전·오타 교정**(4b) · **웹 사실 확인**(4c) | auto after fetch; "용어 정리해줘", "이 회사 찾아봐" | `stages/ingest.md` |
+| 5 | Index & refresh · **놓친 것 브리핑** | auto after save | `stages/ingest.md` |
 | 6–7 | Ontology analysis · Database (+batch pipeline) | "온톨로지 분석해줘", "회의 N개 반영해줘" | `stages/ontology.md` |
 | 8 | **Query mode** — Q&A over the data (+브리핑) | "X는 어떻게 생각해?", "미팅 준비해줘", "내가 뭘 놓쳤지?", "이번 주 정리해줘" | `stages/answer.md` |
 | 9 | **Strategy mode** — ideation & planning | "사업 아이디어", "전략 짜줘", "정렬 점검" | `stages/answer.md` |
@@ -52,6 +56,15 @@ When the skill activates mid-life of a corpus (config exists), take 10 seconds:
 
 - **Token economy**: transcripts are formatted/patched by python scripts — the LLM
   never re-emits transcript bodies. Applies to every stage.
+- **Corrections leave a trail**: transcripts are only ever edited by `lexicon.py`
+  (dictionary-driven `apply`, or reader-decided `patch`) — every replacement is backed up,
+  logged with its grounds (확정/추론), and revertable by batch. Person names are never
+  fixed by rewriting text; they are fixed with an alias in `_meta/speakers.json`.
+  실제 발언은 보존이 원칙이다 — 지시어는 지우지 말고 `그 건〔=번들 가격안〕`처럼 주석으로 푼다.
+- **External info is labeled, sourced, and never evidence**: web facts live in their own
+  table with a URL and a fetch date, are quoted as "웹 출처(날짜)", and raise no model's
+  evidence grade. Search queries are composed by `enrich.py` from names only — 회의 본문은
+  검색어에 넣지 않는다 — and private people (팀원·가족·지인) are not searched at all.
 - **Honesty**: evidence grades are earned (`high` needs verified verbatim + sincerity);
   STALE models are answered in past tense; simulations are labeled; never fabricate.
   **Readings (대화 의도) are inferences**: always shown with what was actually said and the
@@ -75,7 +88,7 @@ block, one quoted prompt per line.
 | Just finished | Suggest (fill 〈…〉 from their data) |
 |---|---|
 | Install / Stage 0 | "최근 Plaud 녹음 가져와서 정리해줘" · "이번 달 회의 다 코퍼스에 넣어줘" |
-| First sync (1–5) | "온톨로지 분석해줘" · "〈방금 회의 참석자〉 만나기 전 브리핑 해줘" · "〈가장 많이 등장한 사람〉 화자 확인해줘" |
+| First sync (1–5) | "용어 정리해줘 (자주 틀리는 표기 확인)" · "온톨로지 분석해줘" · "〈방금 회의 참석자〉 만나기 전 브리핑 해줘" · "〈가장 많이 등장한 사람〉 화자 확인해줘" |
 | Ontology (6–7) | "〈핵심 인물〉은 어떤 사람이야?" · "〈핵심 인물〉 도시에 보여줘" · "우리 조직 어디가 안 맞아?" |
 | A query answer (8) | the natural follow-up + one strategy hook: "〈방금 주제〉로 전략 옵션 짜줘 (S2)" |
 | A strategy deliverable (9) | "〈추천 옵션〉 반대할 〈인물〉 설득 브리핑 만들어줘 (S3)" · "다음 달에 정렬 점검 다시 해줘 (S4)" |
@@ -91,6 +104,8 @@ Stage details: `stages/ingest.md` (0–5) · `stages/ontology.md` (6–7 + batch
 - `scripts/` — `build_index` · `build_db` · `build_dossiers` · `validate` ·
   `prepare_synthesis` + `merge_ontology` (batch pipeline) · `migrate_objects` (v1→v2) ·
   `purge_person` (right-to-be-forgotten) · `whisper_transcribe` ·
+  `lexicon` (용어 사전 · STT 오타 교정 · 되돌릴 수 있는 본문 패치) ·
+  `enrich` (웹 사실 확인 — 계획·캐시·반영, 프라이버시 게이트 포함) ·
   `diarize` + `recluster` + `voiceprint` + `merge_diar` (audio → who said what) ·
   `build_briefing` (놓친 것 브리핑 — 회의 직후 / 만나기 전 / 내일 일정 / 주간) ·
   `match_calendar` (녹음 ↔ 캘린더 일정 매칭, TPO·참석자 정답지)

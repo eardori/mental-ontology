@@ -209,6 +209,12 @@ def main():
     CREATE TABLE meetings(source_id TEXT, date TEXT, title TEXT, category TEXT,
                           duration_min INTEGER, transcribed_by TEXT, path TEXT, participants TEXT,
                           start_time TEXT, setting TEXT);
+    CREATE TABLE terms(term TEXT PRIMARY KEY, kind TEXT, desc TEXT, status TEXT, source TEXT,
+                       aliases TEXT, count INTEGER, first_seen TEXT, last_seen TEXT,
+                       web_url TEXT, web_fetched TEXT);
+    CREATE TABLE term_misspellings(term TEXT, form TEXT, status TEXT, source TEXT, learned TEXT);
+    CREATE TABLE entity_facts(entity TEXT, kind TEXT, fact TEXT, url TEXT, fetched TEXT,
+                              status TEXT, source TEXT);
     CREATE TABLE utterances(meeting_rowid INTEGER, speaker TEXT, speaker_raw TEXT, ts TEXT, text TEXT);
     CREATE INDEX idx_utt_meeting ON utterances(meeting_rowid);
     CREATE INDEX idx_utt_speaker ON utterances(speaker);
@@ -311,6 +317,44 @@ def main():
                 c.execute("INSERT INTO network VALUES(?,?,?,?,?,?)",
                           (name, mgr, "보고", "", e.get("team", ""), "조직도"))
                 net_seen.add((name, mgr, "보고"))
+
+    # --- lexicon (_meta/lexicon.json) + web enrichment (_meta/enrichment.json) ---
+    # 용어 사전 must be queryable, or query mode cannot say "그 용어는 이런 뜻이고 이렇게
+    # 잘못 적히곤 한다". Web facts land in their OWN table with a URL and a date so an
+    # answer can never quietly present an internet claim as something someone said.
+    n_terms = n_miss = n_facts = 0
+    lex_path = os.path.join(corpus, "_meta", "lexicon.json")
+    if os.path.exists(lex_path):
+        try:
+            lex = json.load(open(lex_path, encoding="utf-8"))
+            for e in lex.get("terms", []):
+                web = e.get("web") or {}
+                c.execute("INSERT OR REPLACE INTO terms VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                          (e.get("term"), e.get("kind", ""), e.get("desc", ""),
+                           e.get("status", ""), e.get("source", ""),
+                           ", ".join(e.get("aliases") or []), e.get("count", 0),
+                           e.get("first_seen", ""), e.get("last_seen", ""),
+                           web.get("url", ""), web.get("fetched", "")))
+                n_terms += 1
+                for m in e.get("misspellings") or []:
+                    c.execute("INSERT INTO term_misspellings VALUES(?,?,?,?,?)",
+                              (e.get("term"), m.get("form", ""), m.get("status", ""),
+                               m.get("source", ""), m.get("learned", "")))
+                    n_miss += 1
+        except Exception as ex:
+            print(f"WARN: could not parse _meta/lexicon.json: {ex}")
+    enr_path = os.path.join(corpus, "_meta", "enrichment.json")
+    if os.path.exists(enr_path):
+        try:
+            enr = json.load(open(enr_path, encoding="utf-8"))
+            for name, e in (enr.get("entities") or {}).items():
+                for f in e.get("facts") or []:
+                    c.execute("INSERT INTO entity_facts VALUES(?,?,?,?,?,?,?)",
+                              (name, e.get("kind", ""), f.get("text", ""), f.get("url", ""),
+                               f.get("fetched", ""), e.get("status", ""), "web"))
+                    n_facts += 1
+        except Exception as ex:
+            print(f"WARN: could not parse _meta/enrichment.json: {ex}")
 
     # --- transcripts ---
     n_utt = 0
@@ -458,6 +502,23 @@ def main():
         pct = lambda k: f"{100.0 * spk_stats[k] / n_utt:.1f}%"
         print(f"  speaker attribution: canonical {pct('canonical')} · other-name {pct('raw-name')}"
               f" · generic(Speaker N) {pct('generic')} · unattributed {pct('unattributed')}")
+    if n_terms or n_facts:
+        print(f"  lexicon: {n_terms} terms · {n_miss} misspelling pairs | "
+              f"web facts: {n_facts} (entity_facts — 외부 출처, 근거 등급과 무관)")
+        # a known-but-unapplied correction means the DB still carries the wrong spelling
+        stale = []
+        pairs = c.execute("SELECT term, form, status FROM term_misspellings "
+                          "WHERE status IN ('확정','추론')").fetchall()
+        for term, form, st in pairs:   # materialized: an inner execute() would reset `c`
+            n = c.execute("SELECT COUNT(*) FROM utterances WHERE text LIKE ?",
+                          (f"%{form}%",)).fetchone()[0]
+            if n:
+                stale.append((form, term, st, n))
+        if stale:
+            print(f"WARN: {len(stale)} known misspellings are STILL in the transcripts "
+                  f"(run `lexicon.py <corpus> apply --apply`, then rebuild):")
+            for form, term, st, n in sorted(stale, key=lambda x: -x[3])[:10]:
+                print(f"    {form} → {term} ({n} utterances, {st})")
     if conflicts:
         print("WARN: ambiguous aliases were dropped from the map — fix them in _meta/speakers.json.")
     if dup_sids:

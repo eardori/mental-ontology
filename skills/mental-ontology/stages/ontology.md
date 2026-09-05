@@ -144,6 +144,14 @@ re-running these leaves the viewer showing stale data (a real failure mode obser
 - Run `--apply-recalib` every sync; do the dupe/flag review periodically (or when the
   model count jumps). First-run 2026-08: 226 models, 0 near-dupes (clean), 80 recalibrated.
 
+**추출 전에 텍스트부터 고친다.** 대량 재추출(배치)이나 정기 위생 점검을 시작하기 전에
+`lexicon.py <corpus> mine`을 한 번 돌려라 — 틀린 표기로 남아 있는 용어는 인용 접지
+(`validate.py`)와 전문검색에서 모두 실패하고, 추출 에이전트에게도 다른 단어로 보인다.
+교정을 적용했다면 **본문이 바뀌었으므로** Stage 5 체인(`build_index` → `build_db` →
+`build_dossiers`)을 다시 돌린 뒤 추출을 시작한다. 이미 만들어진 `quote`는 교정 전
+표기일 수 있는데, `validate.py`의 인용 접지는 STT 오차에 관대하므로 대개 통과한다 —
+통과하지 못하면 그 인용을 실제 발화로 다시 맞춰라(사전이 아니라 인용이 틀린 것이다).
+
 ## v3 — shadows, common ground, and honesty about sources
 
 Extract these alongside models (schema_version 3):

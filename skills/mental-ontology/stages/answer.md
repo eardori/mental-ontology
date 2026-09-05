@@ -27,6 +27,10 @@ the DB + transcripts, per **`assets/PLAYBOOK.md` Part 1**. Core discipline:
   (캐시된 캘린더 기준; 하루치 일정마다 만날 사람의 미이행 약속·미확인 추정·마지막 접촉을
   붙여준다). 캐시가 없거나 오래됐으면 Stage 1b로 캘린더를 먼저 받아 캐시한다. 캘린더에만
   있고 코퍼스에 없는 이름은 **별칭 후보로만** 제시된다 — 사람이 확정해야 하는 조인 키다.
+- **용어와 외부 정보**: 사용자가 모르는 말을 물으면 `terms` 먼저(Recipe N) — 사전에 있으면
+  뜻과 함께 답하고, 없으면 실제 쓰임을 보여준 뒤 사전에 넣을지 묻는다. 검색이 비면 오표기가
+  남아 있을 수 있으니 `term_misspellings`까지 함께 조회한다. `entity_facts`(웹)는 **문단을
+  나눠** "웹 출처(수집일)"로 인용하고, 회의 근거와 절대 한 문장에 섞지 않는다.
 - **Freshness**: a model whose `last_seen` is 6+ months behind the newest meeting
   (validate.py flags these as STALE) is answered in past tense — "당시에는 ~라고
   봤습니다 (이후 확인 없음)" — never as their current view. People change.
