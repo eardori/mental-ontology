@@ -93,6 +93,10 @@ block, one quoted prompt per line.
 | A query answer (8) | the natural follow-up + one strategy hook: "〈방금 주제〉로 전략 옵션 짜줘 (S2)" |
 | A strategy deliverable (9) | "〈추천 옵션〉 반대할 〈인물〉 설득 브리핑 만들어줘 (S3)" · "다음 달에 정렬 점검 다시 해줘 (S4)" |
 
+## 탐색 인덱스 유지
+
+녹음을 코퍼스에 확정·수정·삭제할 때마다 `build_index.py <corpus>`를 다시 돌린다 — `catalog.json`·`INDEX.md`와 함께 **`_index/BROWSE.md`(인물별·회사별·주제별)**가 갱신된다. 주제·회사 분류는 `_meta/topics.json`의 키워드 부분일치(없으면 인물별만). 새 사안·거래처가 생기면 키워드 한 줄을 추가한다 — 예시 `assets/topics.example.json`. 본인(`speakers.json`의 `"owner": true`)은 인물 목록에서 빠진다. 모든 인덱스·도시에 링크는 **표준 마크다운**(`[제목](<../transcripts/...md>)`)이라 Obsidian·Typora·GitHub 어디서나 열린다.
+
 ## Reference files
 
 Stage details: `stages/ingest.md` (0–5) · `stages/ontology.md` (6–7 + batch pipeline) · `stages/answer.md` (8–9)
@@ -101,7 +105,7 @@ Stage details: `stages/ingest.md` (0–5) · `stages/ontology.md` (6–7 + batch
 - `assets/PLAYBOOK.md` — query recipes (Part 1) + strategy workflows S1–S5 (Part 2)
 - `assets/schema.json` — objects.json JSON Schema (v4) · `assets/corpus-structure.md` — folder layout
 - `assets/viewer.html` — self-contained viewer
-- `scripts/` — `build_index` · `build_db` · `build_dossiers` · `validate` ·
+- `scripts/` — `build_index` (+ `build_browse` → `_index/BROWSE.md`) · `build_db` · `build_dossiers` · `validate` ·
   `prepare_synthesis` + `merge_ontology` (batch pipeline) · `migrate_objects` (v1→v2) ·
   `purge_person` (right-to-be-forgotten) · `whisper_transcribe` ·
   `lexicon` (용어 사전 · STT 오타 교정 · 되돌릴 수 있는 본문 패치) ·

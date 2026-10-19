@@ -9,7 +9,8 @@ Plain markdown — works standalone or inside an Obsidian vault.
 │   └── <YYYY>/<YYYY-MM>/
 │       └── <YYYY-MM-DD>_<slug>.md        # frontmatter + summary + transcript
 ├── _index/
-│   ├── INDEX.md                  # human-readable index (category/month, wikilinks)
+│   ├── INDEX.md                  # human-readable index (category/month, standard md links)
+│   ├── BROWSE.md                 # 인물별 · 회사별 · 주제별 탐색 인덱스 (build_browse.py, 🔒 = L3·기밀)
 │   └── catalog.json              # machine-readable index (for agents/tools)
 ├── people/                       # person dossiers (build_dossiers.py) — the 인물 중심 artifact
 │   ├── INDEX.md                  # tiers, contacts (auto-collected), promotion candidates
@@ -25,6 +26,7 @@ Plain markdown — works standalone or inside an Obsidian vault.
 │   ├── enrichment.json           # 웹 보강 캐시 (Stage 4c) — 주장마다 URL·수집일. 근거 아님
 │   ├── calendar/                 # 캘린더 캐시 (Stage 1b) — 월별 일정, 매칭의 입력
 │   │   └── <YYYY-MM>.json        #   {fetched, range, owner_domain, events[]}
+│   ├── topics.json               # BROWSE.md 분류 규칙 — 주제·회사별 키워드 (예시: assets/topics.example.json)
 │   ├── state.json                # {"last_synced": "YYYY-MM-DD"}
 │   └── deletion-candidates.md    # junk recordings to delete in the Plaud app
 ├── _whisper/                     # local transcription workspace

@@ -293,6 +293,27 @@ def test_dossiers(tmp):
     check("INDEX lists core tier", "Core" in idx and "정우진" in idx, idx[:300])
     check("INDEX auto-collects contacts (Naomi Park, Mina)",
           "Naomi Park" in idx and "Mina" in idx, "")
+    check("dossier links are standard markdown (no [[wikilinks]])",
+          "[[" not in t and "](<../transcripts/" in t and "[[" not in idx, t[:300])
+
+
+def test_browse(tmp):
+    print("\n[1c] build_browse — 인물·회사·주제별 BROWSE.md, topics.json, 표준 링크")
+    root = tmp / "corpus_v2"
+    write(root / "_meta" / "topics.json", json.dumps({
+        "topics": [{"name": "번들 가격", "keywords": ["번들", "선지급"]}],
+        "orgs": [{"name": "Acme 내부", "keywords": ["이서연"]}]}, ensure_ascii=False))
+    rc, out = run("build_index.py", root)
+    check("build_index (with browse) exits 0", rc == 0 and "BROWSE.md" in out, out)
+    b = (root / "_index" / "BROWSE.md").read_text(encoding="utf-8")
+    check("BROWSE has topic, org and person sections",
+          "## 주제별" in b and "### 번들 가격" in b and "### Acme 내부" in b and "## 인물별" in b, b[:500])
+    check("BROWSE links are standard markdown", "[[" not in b and "](<../transcripts/" in b, b[:300])
+    ix = (root / "_index" / "INDEX.md").read_text(encoding="utf-8")
+    check("INDEX links are standard markdown", "[[" not in ix and "](<../transcripts/" in ix, ix[:300])
+    check("paren-aware participant split keeps '정우진(대표, Acme)' as one person",
+          (sys.path.insert(0, str(SCRIPTS)) or __import__("build_index")).split_list("정우진(대표, Acme), 이서연")
+          == ["정우진(대표, Acme)", "이서연"], "")
 
 def readings_case(base, mutate):
     """copy the clean corpus, mutate readings[], return validate's output"""
@@ -1281,6 +1302,7 @@ def main():
         tmp = Path(td)
         test_pipeline_v2(tmp)
         test_dossiers(tmp)
+        test_browse(tmp)
         test_readings(tmp)
         test_briefing(tmp)
         test_calendar(tmp)

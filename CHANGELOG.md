@@ -9,6 +9,35 @@
 
 ---
 
+## [2.2.0] — 2026-10-19 — 인물·회사·주제로 찾아 들어가기
+
+회의가 500건을 넘으면 "언제 했더라"보다 **"그 사람·그 회사·그 사안으로 뭘 얘기했더라"**로
+찾게 됩니다. 카테고리·월별 목록만으로는 그 질문에 답하지 못했습니다.
+
+### Added
+
+- **탐색 인덱스 `_index/BROWSE.md`** (`scripts/build_browse.py`) — 인물별 · 회사·기관별 · 주제별.
+  `build_index.py`가 끝에서 자동 호출하므로 파이프라인 순서는 그대로입니다.
+  - 주제·회사는 `_meta/topics.json`의 키워드 부분일치(예시 `assets/topics.example.json`).
+    `since`로 기간 제한, `skip_people`로 사람이 아닌 참석자 표기 제외. 대문자 약어(AI·IR)는 대소문자 구분.
+  - 인물은 `speakers.json` 이름·별칭으로 정규화, 레지스트리에 없으면 괄호·직함을 떼고,
+    소속이 괄호에 있으면 `이름(소속)`으로 남겨 **동명이인이 합쳐지지 않게** 합니다.
+    본인(`"owner": true`)은 목록에서 빠집니다.
+  - 🔒 = `sensitivity: L3` 또는 `confidentiality` 지정 문서. 파일 권한 600.
+- `catalog.json` 항목에 `sensitivity`·`confidential` 필드.
+
+### Changed
+
+- **모든 인덱스·도시에 링크를 표준 마크다운으로** — `[[wikilink]]` 대신
+  `[제목](<../transcripts/...md>)`. Obsidian·Typora·GitHub 어디서나 클릭됩니다
+  (`_index/INDEX.md`, `_index/BROWSE.md`, `people/*.md`, `people/INDEX.md`).
+
+### Fixed
+
+- 참석자 목록의 괄호 안 쉼표를 구분자로 잘못 쪼개던 문제 — `정우진(대표, Acme)`가 두 사람이 되던 것.
+
+---
+
 ## [2.1.0] — 2026-09-05 — 코퍼스가 자기 어휘를 배운다
 
 들리는 대로 받아쓴 텍스트를 근거로 쓰는 도구에서, **틀린 표기는 없는 데이터와 같습니다.**

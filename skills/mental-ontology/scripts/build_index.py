@@ -20,7 +20,7 @@ def split_list(v):
     Naive comma splitting turns one attendee named "Kim, Mina" into two people, who
     then get their own person_meetings rows and dossiers.
     """
-    out, cur, q = [], "", None
+    out, cur, q, depth = [], "", None, 0
     for ch in v:
         if q:
             if ch == q:
@@ -29,7 +29,13 @@ def split_list(v):
                 cur += ch
         elif ch in "\"'" and not cur.strip():
             q = ch          # 항목 시작에서만 인용 시작. O'Brien 의 ' 는 이름의 일부다.
-        elif ch == ",":
+        elif ch in "([":
+            depth += 1
+            cur += ch
+        elif ch in ")]":
+            depth = max(0, depth - 1)
+            cur += ch
+        elif ch == "," and depth == 0:     # "오현석(Kevin, 참석자)" 괄호 안 쉼표는 구분자 아님
             out.append(cur.strip())
             cur = ""
         else:
@@ -81,6 +87,8 @@ def main():
             "setting": str(fm.get("setting", "")),         # TPO (match_calendar.py)
             "calendar_event": str(fm.get("calendar_event", "")),
             "part": fm.get("part", ""),
+            "sensitivity": str(fm.get("sensitivity", "")),
+            "confidential": bool(fm.get("confidentiality")),
             "path": os.path.relpath(p, corpus),
             "vault_link": os.path.splitext(os.path.basename(p))[0],
         })
@@ -111,13 +119,21 @@ def main():
             continue
         L += ["", f"### {c} ({len(groups[c])})", ""]
         for r in sorted(groups[c], key=lambda x: x["date"], reverse=True):
-            parts = ", ".join(r["participants"][:4]) if r["participants"] else ""
+            parts = ", ".join(x.replace("[[", "").replace("]]", "") for x in r["participants"][:4])  # 위키링크 표기 제거
             dur = f'{r["duration_min"]}min' if r["duration_min"] else ""
             extra = " · ".join(x for x in (dur, parts) if x)
-            L.append(f'- `{r["date"]}` [[{r["vault_link"]}|{r["title"]}]]' + (f' · {extra}' if extra else ''))
+            t = (r["title"] or r["vault_link"]).replace("[", "(").replace("]", ")")
+            L.append(f'- `{r["date"]}` [{t}](<../{r["path"]}>)' + (f' · {extra}' if extra else ''))  # 표준 md 링크 (Obsidian·Typora 공용)
     open(os.path.join(idx, "INDEX.md"), "w", encoding="utf-8").write("\n".join(L))
     print(f"OK: {len(rows)} entries → _index/catalog.json + _index/INDEX.md")
     print("categories:", dict(bycat))
+
+    # 인물별·회사별·주제별 탐색 인덱스 (_index/BROWSE.md) — 같은 실행에서 항상 갱신
+    try:
+        import build_browse
+        build_browse.build(corpus, rows)
+    except Exception as e:  # 탐색 인덱스 실패가 카탈로그 생성을 막지 않게
+        print(f"WARN: BROWSE.md 생성 실패: {e}")
 
     sid_paths = defaultdict(list)
     for r in rows:

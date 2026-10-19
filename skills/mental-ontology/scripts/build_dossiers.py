@@ -37,8 +37,11 @@ def manual_block(path):
     return m.group(1) if m else "(여기에 자유롭게 메모하세요 — 도시에를 다시 생성해도 이 섹션은 보존됩니다)"
 
 def wikilink(path, title):
+    """표준 마크다운 링크 (Obsidian·Typora·GitHub 공용). 도시에는 <corpus>/people/ 에 있으므로 ../ 기준."""
     base = os.path.splitext(os.path.basename(path))[0]
-    return f"[[{base}|{title or base}]]"
+    t = (title or base).replace("[", "(").replace("]", ")")
+    rel = path if not os.path.isabs(path) else os.path.basename(path)
+    return f"[{t}](<../{rel}>)"
 
 def dossier(name, entry, db, models_of, out_path):
     q = lambda s, *a: db.execute(s, a).fetchall()
@@ -229,7 +232,7 @@ def main():
             name = e["name"]
             r = q("""SELECT COUNT(DISTINCT meeting_rowid), MAX(m.date) FROM person_meetings pm
                      JOIN meetings m ON m.rowid=pm.meeting_rowid WHERE person=?""", name)[0]
-            L.append(f"| [[{safe_name(name)}\\|{name}]] | {e.get('role','')} | {r[0]}회 | {r[1] or ''} |")
+            L.append(f"| [{name}](<{safe_name(name)}.md>) | {e.get('role','')} | {r[0]}회 | {r[1] or ''} |")
         L.append("")
     if promote:
         L += ["## 승격 후보 (3회 이상 만남 — 레지스트리 등록 추천)", "",

@@ -29,7 +29,7 @@ or clients keep the cached copy (`marketplace.json` carries no version field —
 manifest is the single source of truth). Editing this repo never affects an installed copy — develop against
 `tests/run_tests.py`, not the cache. `INSTALL.md` also documents the manual
 `cp -R` path for forks (never run both — the skill would load twice). User-visible changes belong in `CHANGELOG.md`:
-the repo versions itself there (currently 2.1.0), and a reader landing on the repo uses it
+the repo versions itself there (currently 2.2.0), and a reader landing on the repo uses it
 plus the README's "30초 요약" to understand what this is.
 
 ## Commands
