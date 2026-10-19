@@ -35,7 +35,7 @@ def split_list(v):
         elif ch in ")]":
             depth = max(0, depth - 1)
             cur += ch
-        elif ch == "," and depth == 0:     # "오현석(Kevin, 참석자)" 괄호 안 쉼표는 구분자 아님
+        elif ch == "," and depth == 0:     # "정우진(대표, Acme)" 괄호 안 쉼표는 구분자 아님
             out.append(cur.strip())
             cur = ""
         else:

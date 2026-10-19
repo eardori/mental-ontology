@@ -53,7 +53,7 @@ def norm_person(raw, alias, skip=()):
     base = re.sub(r"\(.*$", "", raw).strip()                  # 괄호 앞부분
     for t in TITLES:
         base = re.sub(rf"\s*{t}$", "", base).strip()
-    if not base or base.lower() in GENERIC or base.lower().split()[0] in skip or "미상" in raw:   # "온다 팀" 등 접두 일치
+    if not base or base.lower() in GENERIC or base.lower().split()[0] in skip or "미상" in raw:   # "Acme 팀" 등 접두 일치
         return None
     if base.lower() in alias:
         return alias[base.lower()]
